@@ -1,3 +1,64 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "prod_1",
+      "description": "A can of soda",
+      "imageUrl": "https://images.unsplash.com/photo-1630404365865-97ff92feba6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxzb2RhJTIwY2FufGVufDB8fHx8MTc1OTM1MzkzMXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "soda can"
+    },
+    {
+      "id": "prod_2",
+      "description": "A bag of coffee beans",
+      "imageUrl": "https://images.unsplash.com/photo-1690983326555-8b8e27843a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxjb2ZmZWUlMjBiZWFuc3xlbnwwfHx8fDE3NTkyNzcxNzl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "coffee beans"
+    },
+    {
+      "id": "prod_3",
+      "description": "A loaf of bread",
+      "imageUrl": "https://images.unsplash.com/photo-1621930599483-491673fc2042?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxicmVhZCUyMGxvYWZ8ZW58MHx8fHwxNzU5MzA5MDEzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "bread loaf"
+    },
+    {
+      "id": "prod_4",
+      "description": "A bottle of milk",
+      "imageUrl": "https://images.unsplash.com/photo-1560848119-ec9255fd285b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxtaWxrJTIwYm90dGxlfGVufDB8fHx8MTc1OTI5NjIxN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "milk bottle"
+    },
+    {
+      "id": "prod_5",
+      "description": "A carton of eggs",
+      "imageUrl": "https://images.unsplash.com/photo-1502630039397-c104a63cc224?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxlZ2clMjBjYXJ0b258ZW58MHx8fHwxNzU5MzU5MzczfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "egg carton"
+    },
+    {
+      "id": "prod_6",
+      "description": "A bar of chocolate",
+      "imageUrl": "https://images.unsplash.com/photo-1565071559227-20ab25b7685e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxjaG9jb2xhdGUlMjBiYXJ8ZW58MHx8fHwxNzU5MzMzNTY0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "chocolate bar"
+    },
+    {
+      "id": "prod_7",
+      "description": "A bag of chips",
+      "imageUrl": "https://images.unsplash.com/photo-1748765968997-ba9bae9cfd7b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxjaGlwJTIwYmFnfGVufDB8fHx8MTc1OTI3NTQxNHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "chip bag"
+    },
+    {
+      "id": "prod_8",
+      "description": "A box of cereal",
+      "imageUrl": "https://images.unsplash.com/photo-1504308805006-0f7a5f1f0f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxjZXJlYWwlMjBib3h8ZW58MHx8fHwxNzU5MzIxNjUyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "cereal box"
+    },
+    {
+      "id": "prod_9",
+      "description": "A jar of jam",
+      "imageUrl": "https://images.unsplash.com/photo-1605280025948-79a5792233d4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxqYW0lMjBqYXJ8ZW58MHx8fHwxNzU5MzU1Njg4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "jam jar"
+    },
+    {
+      "id": "prod_10",
+      "description": "A bottle of water",
+      "imageUrl": "https://images.unsplash.com/photo-1625708458528-802ec79b1ed8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3YXRlciUyMGJvdHRsZXxlbnwwfHx8fDE3NTkzMjY5NzV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "water bottle"
+    }
+  ]
 }

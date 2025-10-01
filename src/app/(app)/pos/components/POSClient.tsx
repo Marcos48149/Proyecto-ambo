@@ -1,0 +1,254 @@
+'use client';
+import { useState } from 'react';
+import Image from 'next/image';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { products as allProducts } from '@/lib/data';
+import type { CartItem, Product } from '@/lib/types';
+import {
+  CreditCard,
+  DollarSign,
+  PlusCircle,
+  MinusCircle,
+  X,
+  List,
+  CheckCircle,
+  Barcode,
+} from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+export function POSClient() {
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+
+  const addToCart = (product: Product) => {
+    setCart((prevCart) => {
+      const existingItem = prevCart.find(
+        (item) => item.product.id === product.id
+      );
+      if (existingItem) {
+        return prevCart.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prevCart, { product, quantity: 1 }];
+    });
+  };
+
+  const updateQuantity = (productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.product.id === productId ? { ...item, quantity } : item
+      )
+    );
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart((prevCart) =>
+      prevCart.filter((item) => item.product.id !== productId)
+    );
+  };
+
+  const filteredProducts = allProducts.filter(
+    (product) =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.code.includes(searchTerm)
+  );
+
+  const cartTotal = cart.reduce(
+    (total, item) => total + item.product.price * item.quantity,
+    0
+  );
+
+  const handleFinalizeSale = () => {
+    if (cart.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Please add products to the cart before finalizing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    toast({
+      title: 'Sale Successful!',
+      description: `Total: $${cartTotal.toFixed(2)}. Stock has been updated.`,
+      className: 'bg-green-100 dark:bg-green-900 border-green-500 text-green-700 dark:text-green-300',
+      duration: 3000,
+    });
+    setCart([]);
+  };
+
+  return (
+    <div className="grid h-[calc(100vh-8rem)] grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Products Section */}
+      <div className="lg:col-span-2">
+        <Card className="h-full">
+            <CardHeader>
+                <Input
+                    placeholder="Search by name or scan barcode..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-md"
+                />
+            </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[calc(100vh-16rem)]">
+              <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5">
+                {filteredProducts.map((product) => (
+                  <Card
+                    key={product.id}
+                    className="cursor-pointer overflow-hidden transition-all hover:shadow-lg hover:scale-105"
+                    onClick={() => addToCart(product)}
+                  >
+                    <Image
+                      src={product.imageUrl}
+                      alt={product.name}
+                      width={200}
+                      height={200}
+                      className="h-32 w-full object-cover"
+                      data-ai-hint={product.imageHint}
+                    />
+                    <div className="p-2">
+                      <h3 className="truncate font-semibold">{product.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        ${product.price.toFixed(2)}
+                      </p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cart Section */}
+      <div className="lg:col-span-1">
+        <Card className="flex h-full flex-col">
+          <CardHeader>
+            <CardTitle>Current Sale</CardTitle>
+            <CardDescription>Review items and finalize transaction.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 p-0">
+            <ScrollArea className="h-[calc(100vh-26rem)]">
+              {cart.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-muted-foreground">
+                  <p>Cart is empty</p>
+                </div>
+              ) : (
+                <div className="p-4">
+                  {cart.map((item) => (
+                    <div
+                      key={item.product.id}
+                      className="mb-4 flex items-center gap-4"
+                    >
+                      <Image
+                        src={item.product.imageUrl}
+                        alt={item.product.name}
+                        width={48}
+                        height={48}
+                        className="rounded-md object-cover"
+                         data-ai-hint={item.product.imageHint}
+                      />
+                      <div className="flex-1">
+                        <p className="font-semibold">{item.product.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          ${item.product.price.toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() =>
+                            updateQuantity(
+                              item.product.id,
+                              item.quantity - 1
+                            )
+                          }
+                        >
+                          <MinusCircle className="h-4 w-4" />
+                        </Button>
+                        <span>{item.quantity}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() =>
+                            updateQuantity(
+                              item.product.id,
+                              item.quantity + 1
+                            )
+                          }
+                        >
+                          <PlusCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive"
+                        onClick={() => removeFromCart(item.product.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+          <CardFooter className="flex-col !p-4">
+            <Separator className="my-2" />
+            <div className="flex w-full justify-between text-lg font-semibold">
+              <span>Total</span>
+              <span>${cartTotal.toFixed(2)}</span>
+            </div>
+            <Separator className="my-2" />
+            <div className="w-full space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Payment Method</p>
+                <Tabs defaultValue="cash" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="cash"><DollarSign className="mr-2 h-4 w-4"/>Cash</TabsTrigger>
+                        <TabsTrigger value="card"><CreditCard className="mr-2 h-4 w-4"/>Card</TabsTrigger>
+                        <TabsTrigger value="other"><List className="mr-2 h-4 w-4"/>Other</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                <div className="flex items-center space-x-2 pt-2">
+                    <Barcode className="h-5 w-5 text-muted-foreground"/>
+                    <Input placeholder="Client CUIT/CUIL/DNI (optional)" />
+                </div>
+            </div>
+            <Button
+              className="mt-4 w-full bg-accent text-accent-foreground hover:bg-accent/90"
+              style={{'--accent': 'hsl(88 50% 53%)', '--accent-foreground': 'hsl(0 0% 10%)' }}
+              onClick={handleFinalizeSale}
+            >
+              <CheckCircle className="mr-2" />
+              Finalize Sale & Print
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    </div>
+  );
+}
