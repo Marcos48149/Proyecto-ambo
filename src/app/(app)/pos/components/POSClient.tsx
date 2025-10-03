@@ -33,7 +33,6 @@ import {
   doc,
   runTransaction,
   serverTimestamp,
-  writeBatch,
 } from 'firebase/firestore';
 
 export function POSClient() {
@@ -151,7 +150,6 @@ export function POSClient() {
     setIsSubmitting(true);
 
     try {
-      // Use a Firestore transaction to ensure all or nothing
       await runTransaction(firestore, async (transaction) => {
         const orderItems = cart.map((item) => ({
           productId: item.product.id,
@@ -162,24 +160,16 @@ export function POSClient() {
         
         const userId = 'anonymous_pos_sale';
 
-        // 1. Create the order in the user's subcollection (or a general one for anon)
-        // For admins, we also write to the root /orders collection for easy querying.
-        const batch = writeBatch(firestore);
-        
-        const userOrderRef = doc(collection(firestore, 'users', userId, 'orders'));
-        const rootOrderRef = doc(collection(firestore, 'orders'));
-
-        const orderData = {
+        // 1. Create the order in the user's subcollection
+        // For anonymous POS sales, we use a specific user ID.
+        const orderRef = collection(firestore, 'users', userId, 'orders');
+        addDoc(orderRef, {
           userId: userId,
           items: orderItems,
           totalAmount: cartTotal,
           status: 'paid' as const, // POS sales are considered paid immediately
           createdAt: serverTimestamp(),
-        };
-        
-        // Write to both locations
-        batch.set(userOrderRef, orderData);
-        batch.set(rootOrderRef, orderData);
+        });
 
         // 2. Update stock for each product in the cart
         for (const item of cart) {
@@ -195,9 +185,6 @@ export function POSClient() {
           // Use the transaction to update stock
           transaction.update(productRef, { stock: newStock });
         }
-        
-        // Commit the batch of writes for orders
-        await batch.commit();
       });
 
 
@@ -408,5 +395,3 @@ export function POSClient() {
     </div>
   );
 }
-
-    

@@ -44,9 +44,9 @@ export default function OrdersPage() {
   const ordersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
-    // Admins query the root `orders` collection to see all orders.
+    // Admins query the collection group 'orders' to see all orders across all users.
     // Regular users query their own nested `orders` subcollection.
-    const path = isAdmin ? collection(firestore, 'orders') : collection(firestore, 'users', user.uid, 'orders');
+    const path = isAdmin ? collectionGroup(firestore, 'orders') : collection(firestore, 'users', user.uid, 'orders');
     return query(path, orderBy('createdAt', 'desc'));
   }, [firestore, user, isAdmin]);
 
@@ -158,5 +158,3 @@ export default function OrdersPage() {
     </>
   );
 }
-
-    
