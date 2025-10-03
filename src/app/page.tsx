@@ -16,6 +16,7 @@ import {
   useFirestore,
   useMemoFirebase,
   setDocumentNonBlocking,
+  useUser,
 } from '@/firebase';
 import { collection, query, doc, getDocs } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
@@ -26,13 +27,17 @@ import { products as sampleProducts } from '@/lib/data';
 
 export default function HomePage() {
   const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
 
   // Seed database with sample products if it's empty
   useEffect(() => {
     const seedDatabase = async () => {
-      if (!firestore) return;
+      // Wait for user to be loaded and firestore to be available
+      if (isUserLoading || !firestore || !user) return;
+      
       const productsCollection = collection(firestore, 'products');
       const snapshot = await getDocs(productsCollection);
+      
       if (snapshot.empty) {
         console.log('No products found, seeding database...');
         const promises = sampleProducts.map((product) => {
@@ -45,7 +50,7 @@ export default function HomePage() {
       }
     };
     seedDatabase();
-  }, [firestore]);
+  }, [firestore, user, isUserLoading]);
 
   const productsQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'products')) : null),
@@ -53,7 +58,7 @@ export default function HomePage() {
   );
   const { data: products, isLoading } = useCollection<Product>(productsQuery);
 
-  const featuredProducts = products?.slice(0, 5) || [];
+  const featuredProducts = products || [];
 
   return (
     <div className="bg-background text-foreground">
