@@ -89,14 +89,16 @@ export function useCollection<T = any>(
   type StateDataType = ResultItemType[] | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading true
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // Early return if no query provided
+    // Early return if no query provided. This is the key fix.
+    // When the component first renders, the query might be null.
+    // This ensures we wait for a valid query before proceeding.
     if (!memoizedTargetRefOrQuery) {
       setData(null);
-      setIsLoading(false);
+      setIsLoading(false); // Not loading because we are not fetching.
       setError(null);
       return;
     }
@@ -114,18 +116,6 @@ export function useCollection<T = any>(
 
     // Extract path early for error handling
     const queryPath = extractPath(memoizedTargetRefOrQuery);
-
-    // Validate that we're not querying the root
-    if (queryPath === '' || queryPath === '/' || queryPath === 'unknown (empty collection path)' || queryPath === 'unknown (empty query path)') {
-      const validationError = new Error(
-        `Invalid Firestore query: Cannot query root collection or empty path. Path: "${queryPath}"`
-      );
-      console.error(validationError);
-      setError(validationError);
-      setData(null);
-      setIsLoading(false);
-      return;
-    }
 
     // Subscribe to the collection/query
     const unsubscribe = onSnapshot(
