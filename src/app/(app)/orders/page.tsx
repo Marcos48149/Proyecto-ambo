@@ -24,45 +24,54 @@ import { useEffect, useState } from 'react';
 
 export default function OrdersPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRoleChecked, setIsRoleChecked] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
+      if (isUserLoading) return; // Wait until user status is resolved
+
       if (user && firestore) {
         try {
           const userDoc = await getDoc(doc(firestore, 'users', user.uid));
           if (userDoc.exists() && userDoc.data().role === 'admin') {
             setIsAdmin(true);
+            console.log('User confirmed as admin.');
+          } else {
+             console.log('User is not an admin.');
           }
         } catch (error) {
           console.error('Error checking admin role:', error);
         } finally {
           setIsRoleChecked(true);
+          console.log('Role check complete.');
         }
-      } else if (!user) {
+      } else {
         setIsRoleChecked(true);
+         console.log('Role check complete (no user).');
       }
     };
     checkAdmin();
-  }, [user, firestore]);
+  }, [user, firestore, isUserLoading]);
 
   const ordersQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !isRoleChecked) {
+    if (!isRoleChecked || !firestore) {
+      console.log('Orders query waiting for:', { firestore: !!firestore, isRoleChecked });
       return null;
     }
 
     try {
-      if (isAdmin) {
-        // Admin: query all orders using collectionGroup
+      if (isAdmin && user) {
+        console.log('Creating admin orders query (collectionGroup)');
         return query(collectionGroup(firestore, 'orders'), orderBy('createdAt', 'desc'));
-      } else {
-        // Regular user: query their own orders
+      } else if(user) {
+        console.log('Creating user orders query');
         const userOrdersRef = collection(firestore, 'users', user.uid, 'orders');
         return query(userOrdersRef, orderBy('createdAt', 'desc'));
       }
+      return null; // No query if no user and not admin
     } catch (error) {
       console.error('Error creating orders query:', error);
       return null;

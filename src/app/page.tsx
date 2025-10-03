@@ -18,7 +18,7 @@ import {
   setDocumentNonBlocking,
   useUser,
 } from '@/firebase';
-import { collection, query, doc, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserNav } from '@/components/UserNav';
@@ -62,10 +62,11 @@ export default function HomePage() {
   // Only create the query if firestore is available
   const productsQuery = useMemoFirebase(() => {
     if (!firestore) {
-      console.log('Firestore not ready yet');
+      console.log('Firestore not ready yet for products query on home page');
       return null;
     }
-    return query(collection(firestore, 'products'));
+    // Use collection directly as we are not adding where/orderBy clauses
+    return collection(firestore, 'products');
   }, [firestore]);
 
   const { data: products, isLoading } = useCollection<Product>(productsQuery);
