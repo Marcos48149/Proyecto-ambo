@@ -24,7 +24,7 @@ export default function HomePage() {
     [firestore]
   );
   const { data: products, isLoading } = useCollection<Product>(
-    productsQuery as any
+    productsQuery
   );
 
   const featuredProducts = products?.slice(0, 5) || [];
@@ -60,12 +60,6 @@ export default function HomePage() {
               className="text-muted-foreground transition-colors hover:text-primary"
             >
               Catálogo
-            </Link>
-            <Link
-              href="/dashboard"
-              className="text-muted-foreground transition-colors hover:text-primary"
-            >
-              Admin
             </Link>
           </nav>
           <div className="flex items-center gap-4">
@@ -128,7 +122,7 @@ export default function HomePage() {
                   className="w-full"
                 >
                   <CarouselContent>
-                    {featuredProducts.map((product) => (
+                    {(featuredProducts ?? []).map((product) => (
                       <CarouselItem
                         key={product.id}
                         className="md:basis-1/2 lg:basis-1/3"

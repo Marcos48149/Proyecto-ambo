@@ -11,15 +11,32 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuth, useUser } from '@/firebase';
-import { LogOut, User as UserIcon, Settings } from 'lucide-react';
+import { useAuth, useFirebase, useUser } from '@/firebase';
+import { LogOut, User as UserIcon, Settings, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
 
 export function UserNav() {
   const { user, isUserLoading } = useUser();
+  const { firestore } = useFirebase();
   const auth = useAuth();
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (user && firestore) {
+      const checkAdmin = async () => {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          setIsAdmin(true);
+        }
+      };
+      checkAdmin();
+    }
+  }, [user, firestore]);
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -70,10 +87,20 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <UserIcon className="mr-2" />
-            <span>Perfil</span>
+          <DropdownMenuItem asChild>
+            <Link href="/">
+              <UserIcon className="mr-2" />
+              <span>Perfil</span>
+            </Link>
           </DropdownMenuItem>
+          {isAdmin && (
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard">
+                <LayoutDashboard className="mr-2" />
+                <span>Dashboard</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem>
             <Settings className="mr-2" />
             <span>Configuración</span>
