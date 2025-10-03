@@ -60,10 +60,17 @@ function extractPath(queryOrRef: CollectionReference<DocumentData> | Query<Docum
       const path = internalQuery._query.path.canonicalString();
       return path || 'unknown (empty query path)';
     }
+    
+    // For CollectionGroup queries, the path property is not directly on the query object.
+    // This is a common case where path extraction might be difficult.
+    // Let's check for a known pattern for collectionGroup
+    if (internalQuery._query && (internalQuery._query as any).allCollectionGroup) {
+      return (internalQuery._query as any).allCollectionGroup;
+    }
 
     return 'unknown (could not extract path)';
   } catch (e) {
-    console.error('Error extracting path from query:', e);
+    console.warn('Could not extract path from query/ref for debugging:', e);
     return 'unknown (extraction error)';
   }
 }
@@ -89,21 +96,19 @@ export function useCollection<T = any>(
   type StateDataType = ResultItemType[] | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading true
+  const [isLoading, setIsLoading] = useState<boolean>(true); 
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // Early return if no query provided. This is the key fix.
-    // When the component first renders, the query might be null.
-    // This ensures we wait for a valid query before proceeding.
+    // Early return if no query provided. This gracefully handles cases
+    // where the query is not yet ready (e.g., waiting for user auth).
     if (!memoizedTargetRefOrQuery) {
       setData(null);
-      setIsLoading(false); // Not loading because we are not fetching.
+      setIsLoading(false); 
       setError(null);
       return;
     }
-
-    // Check memoization (development warning)
+    
     if (process.env.NODE_ENV === 'development' && !memoizedTargetRefOrQuery.__memo) {
       console.warn(
         'useCollection: Query was not properly memoized using useMemoFirebase. This may cause infinite loops.',
@@ -116,6 +121,14 @@ export function useCollection<T = any>(
 
     // Extract path early for error handling
     const queryPath = extractPath(memoizedTargetRefOrQuery);
+    if(queryPath.startsWith('unknown')){
+        const invalidQueryError = new Error(`Invalid Firestore query: Cannot query root collection or empty path. Path: "${queryPath}"`);
+        setError(invalidQueryError);
+        setIsLoading(false);
+        // Do not emit this as a permission error, it's a code-level error.
+        return;
+    }
+
 
     // Subscribe to the collection/query
     const unsubscribe = onSnapshot(
@@ -129,21 +142,19 @@ export function useCollection<T = any>(
         setError(null);
         setIsLoading(false);
       },
-      (error: FirestoreError) => {
-        console.error('Firestore error:', error);
-        console.error('Query path:', queryPath);
-
-        const contextualError = new FirestorePermissionError({
-          operation: 'list',
+      (serverError: FirestoreError) => {
+        // Create the rich, contextual error asynchronously.
+        const permissionError = new FirestorePermissionError({
           path: queryPath,
+          operation: 'list',
         });
 
-        setError(contextualError);
+        setError(permissionError);
         setData(null);
         setIsLoading(false);
 
-        // Trigger global error propagation
-        errorEmitter.emit('permission-error', contextualError);
+        // Emit the error with the global error emitter
+        errorEmitter.emit('permission-error', permissionError);
       }
     );
 
