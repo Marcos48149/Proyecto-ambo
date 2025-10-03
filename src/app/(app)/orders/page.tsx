@@ -15,7 +15,7 @@ import {
   useMemoFirebase,
   useUser,
 } from '@/firebase';
-import { collection, orderBy, getDoc, doc, collectionGroup, query } from 'firebase/firestore';
+import { collection, orderBy, getDoc, doc, collectionGroup, query as firestoreQuery } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
@@ -24,54 +24,51 @@ import { useEffect, useState } from 'react';
 
 export default function OrdersPage() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRoleChecked, setIsRoleChecked] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
-      if (isUserLoading) return; // Wait until user status is resolved
-
       if (user && firestore) {
         try {
           const userDoc = await getDoc(doc(firestore, 'users', user.uid));
           if (userDoc.exists() && userDoc.data().role === 'admin') {
             setIsAdmin(true);
-            console.log('User confirmed as admin.');
-          } else {
-             console.log('User is not an admin.');
           }
         } catch (error) {
           console.error('Error checking admin role:', error);
         } finally {
           setIsRoleChecked(true);
-          console.log('Role check complete.');
         }
-      } else {
+      } else if (!user) {
+        // If there's no user, we can consider the role check "done"
         setIsRoleChecked(true);
-         console.log('Role check complete (no user).');
       }
     };
     checkAdmin();
-  }, [user, firestore, isUserLoading]);
+  }, [user, firestore]);
 
   const ordersQuery = useMemoFirebase(() => {
-    if (!isRoleChecked || !firestore) {
-      console.log('Orders query waiting for:', { firestore: !!firestore, isRoleChecked });
+    // Wait until dependencies are ready
+    if (!firestore || !isRoleChecked) {
+      return null;
+    }
+    // If no user is logged in (and role check is done), return null
+    if (!user) {
       return null;
     }
 
     try {
-      if (isAdmin && user) {
-        console.log('Creating admin orders query (collectionGroup)');
-        return query(collectionGroup(firestore, 'orders'), orderBy('createdAt', 'desc'));
-      } else if(user) {
-        console.log('Creating user orders query');
+      if (isAdmin) {
+        // collectionGroup returns a Query, no need to wrap it again
+        return firestoreQuery(collectionGroup(firestore, 'orders'), orderBy('createdAt', 'desc'));
+      } else {
+        // Regular user: query their own orders
         const userOrdersRef = collection(firestore, 'users', user.uid, 'orders');
-        return query(userOrdersRef, orderBy('createdAt', 'desc'));
+        return firestoreQuery(userOrdersRef, orderBy('createdAt', 'desc'));
       }
-      return null; // No query if no user and not admin
     } catch (error) {
       console.error('Error creating orders query:', error);
       return null;
@@ -113,13 +110,14 @@ export default function OrdersPage() {
           <p className="font-semibold">Error loading orders:</p>
           <p className="text-sm mt-1">{error.message}</p>
           <p className="text-xs mt-2">
-            Please check your Firestore Security Rules and ensure you have the correct permissions.
+            This could be a permissions issue. Please check your Firestore Security Rules.
           </p>
         </div>
       </div>
     );
   }
 
+  // Show loading skeleton while checking role or fetching data
   const showLoadingSkeleton = isLoading || !isRoleChecked;
 
   return (

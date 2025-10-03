@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { doc, getDoc, collectionGroup, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collectionGroup, query as firestoreQuery, where, getDocs } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
 import {
@@ -36,6 +36,9 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     const checkRoleAndFindOrder = async () => {
+      setIsRoleChecked(false);
+      setOrderPath(null);
+      setSearchError(null);
       if (user && firestore) {
         try {
           const userDoc = await getDoc(doc(firestore, 'users', user.uid));
@@ -45,7 +48,7 @@ export default function OrderDetailPage() {
           if (userIsAdmin) {
             // Admin: Find the order across all users using a collectionGroup query
             try {
-              const q = query(
+              const q = firestoreQuery(
                 collectionGroup(firestore, 'orders'),
                 where('id', '==', orderId)
               );
@@ -77,7 +80,7 @@ export default function OrderDetailPage() {
   }, [user, firestore, orderId]);
 
   const orderRef = useMemoFirebase(() => {
-    if (!firestore || !orderPath || !isRoleChecked) return null;
+    if (!firestore || !isRoleChecked || !orderPath) return null;
     return doc(firestore, orderPath);
   }, [firestore, orderPath, isRoleChecked]);
 
@@ -99,8 +102,10 @@ export default function OrderDetailPage() {
         return 'secondary';
     }
   };
+  
+  const showLoadingSkeleton = isLoading || !isRoleChecked || (isAdmin && !orderPath && !searchError);
 
-  if (isLoading || !isRoleChecked || (isAdmin && !orderPath && !searchError)) {
+  if (showLoadingSkeleton) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-1/3" />
@@ -158,6 +163,7 @@ export default function OrderDetailPage() {
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead className="text-center">Quantity</TableHead>
+
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
                 </TableRow>
@@ -169,6 +175,7 @@ export default function OrderDetailPage() {
                     <TableCell className="text-center">
                       {item.quantity}
                     </TableCell>
+
                     <TableCell className="text-right">
                       ${item.unitPrice.toFixed(2)}
                     </TableCell>

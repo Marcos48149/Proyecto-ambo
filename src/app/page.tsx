@@ -45,10 +45,10 @@ export default function HomePage() {
           console.log('No products found, seeding database...');
           const promises = sampleProducts.map((product) => {
             const productDoc = doc(productsCollection, product.id);
-            return setDocumentNonBlocking(productDoc, product, {});
+            // Use non-blocking write to avoid UI freeze
+            return setDocumentNonBlocking(productDoc, product, {merge: true});
           });
-          await Promise.all(promises);
-          console.log('Database seeded!');
+          // We don't need to await here as the writes are non-blocking
         }
       } catch (error) {
         console.error('Error seeding database:', error);
@@ -59,19 +59,15 @@ export default function HomePage() {
     seedDatabase();
   }, [firestore, user, isUserLoading, isSeeding]);
 
-  // Only create the query if firestore is available
   const productsQuery = useMemoFirebase(() => {
-    if (!firestore) {
-      console.log('Firestore not ready yet for products query on home page');
-      return null;
-    }
-    // Use collection directly as we are not adding where/orderBy clauses
+    if (!firestore) return null;
     return collection(firestore, 'products');
   }, [firestore]);
 
   const { data: products, isLoading } = useCollection<Product>(productsQuery);
 
   const featuredProducts = products || [];
+  const showLoadingSkeleton = isLoading || isUserLoading || (products && products.length === 0 && isSeeding);
 
   return (
     <div className="bg-background text-foreground">
@@ -147,7 +143,7 @@ export default function HomePage() {
               Una selección de nuestros ambos más populares y mejor valorados.
             </p>
             <div className="mt-12">
-              {isLoading || !products || products.length === 0 ? (
+              {showLoadingSkeleton ? (
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {[...Array(3)].map((_, i) => (
                     <div key={i} className="space-y-4">

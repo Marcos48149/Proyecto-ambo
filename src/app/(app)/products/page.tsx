@@ -11,15 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProductsPage() {
   const firestore = useFirestore();
+
   const productsQuery = useMemoFirebase(
     () => (firestore ? collection(firestore, 'products') : null),
     [firestore]
   );
+
   const {
     data: products,
     isLoading,
     error,
-  } = useCollection<Product>(productsQuery as any);
+  } = useCollection<Product>(productsQuery);
 
   if (isLoading) {
     return (
@@ -34,18 +36,25 @@ export default function ProductsPage() {
             Add Product
           </Button>
         </PageHeader>
-        <div className="space-y-4">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => (
+             <Skeleton key={i} className="h-16 w-full" />
+          ))}
         </div>
       </>
     );
   }
 
   if (error) {
-    return <div>Error: {error.message}</div>;
+     return (
+      <div className="p-4">
+        <PageHeader title="Error" description="" />
+        <div className="mt-4 p-4 bg-destructive/10 text-destructive rounded-lg">
+          <p className="font-semibold">Error loading products:</p>
+          <p className="text-sm mt-1">{error.message}</p>
+        </div>
+      </div>
+    );
   }
 
   return (
