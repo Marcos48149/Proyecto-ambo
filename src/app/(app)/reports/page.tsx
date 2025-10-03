@@ -1,3 +1,5 @@
+'use client';
+
 import { PageHeader } from '@/components/PageHeader';
 import {
   Card,
@@ -12,7 +14,7 @@ import {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
-  ChartConfig,
+  type ChartConfig,
 } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell } from 'recharts';
 import { Button } from '@/components/ui/button';
@@ -121,6 +123,7 @@ export default function ReportsPage() {
                   tickMargin={10}
                   axisLine={false}
                   className="text-xs"
+                  width={110}
                 />
                 <XAxis dataKey="sales" type="number" hide />
                 <ChartTooltip
