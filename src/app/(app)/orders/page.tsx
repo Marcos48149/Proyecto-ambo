@@ -18,9 +18,11 @@ import { collection, query, orderBy } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 export default function OrdersPage() {
   const firestore = useFirestore();
+  const router = useRouter();
   const ordersQuery = useMemoFirebase(
     () =>
       firestore
@@ -49,6 +51,10 @@ export default function OrdersPage() {
       default:
         return 'secondary';
     }
+  };
+
+  const handleRowClick = (orderId: string) => {
+    router.push(`/orders/${orderId}`);
   };
 
   if (error) {
@@ -95,9 +101,13 @@ export default function OrdersPage() {
               ))}
             {orders && orders.length > 0 ? (
               orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.id}</TableCell>
-                  <TableCell>{order.userId}</TableCell>
+                <TableRow
+                  key={order.id}
+                  onClick={() => handleRowClick(order.id)}
+                  className="cursor-pointer"
+                >
+                  <TableCell className="font-medium truncate max-w-32">{order.id}</TableCell>
+                  <TableCell className="truncate max-w-40">{order.userId === 'anonymous_pos_sale' ? 'POS Sale' : order.userId}</TableCell>
                   <TableCell>
                     {order.createdAt
                       ? format(order.createdAt.toDate(), 'PPP')
