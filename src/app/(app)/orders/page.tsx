@@ -24,44 +24,49 @@ import { useEffect, useState } from 'react';
 
 export default function OrdersPage() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isRoleChecked, setIsRoleChecked] = useState(false);
 
   useEffect(() => {
-    // This effect runs to determine if the logged-in user is an admin.
     const checkAdmin = async () => {
-      // We only run the check if we have a user and a firestore instance.
+      setIsRoleChecked(false);
       if (user && firestore) {
-        const userDoc = await getDoc(doc(firestore, 'users', user.uid));
-        if (userDoc.exists() && userDoc.data().role === 'admin') {
-          setIsAdmin(true);
-        } else {
-          setIsAdmin(false); // Explicitly set to false for non-admins
+        try {
+          const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+          if (userDoc.exists() && userDoc.data().role === 'admin') {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        } catch (error) {
+          console.error('Error checking admin role:', error);
+          setIsAdmin(false);
+        } finally {
+          setIsRoleChecked(true);
         }
+      } else if (!user) {
+        setIsRoleChecked(true); // Also true if there's no user
       }
     };
     checkAdmin();
   }, [user, firestore]);
 
   const ordersQuery = useMemoFirebase(() => {
-    // The query construction now depends on the user's loading state.
-    // We return `null` if the user is still loading, or if we don't have a user/firestore instance.
-    // The robust `useCollection` hook will handle this `null` value gracefully.
-    if (isUserLoading || !user || !firestore) {
+    // Wait until role is checked, and we have a user and firestore instance
+    if (!isRoleChecked || !user || !firestore) {
       return null;
     }
 
-    // Once we have a user, we can decide which query to build.
+    // Now we can safely build the query
     if (isAdmin) {
-      // Admin: query all orders across all users.
       return firestoreQuery(collectionGroup(firestore, 'orders'), orderBy('createdAt', 'desc'));
     } else {
-      // Regular user: query only their own orders.
       const userOrdersRef = collection(firestore, 'users', user.uid, 'orders');
       return firestoreQuery(userOrdersRef, orderBy('createdAt', 'desc'));
     }
-  }, [firestore, user, isAdmin, isUserLoading]);
+  }, [firestore, user, isAdmin, isRoleChecked]);
 
   const {
     data: orders,
@@ -105,8 +110,7 @@ export default function OrdersPage() {
     );
   }
 
-  // The loading skeleton is now simpler: it shows if the hook is loading OR if the user is loading.
-  const showLoadingSkeleton = isLoading || isUserLoading;
+  const showLoadingSkeleton = isLoading || !isRoleChecked;
 
   return (
     <>

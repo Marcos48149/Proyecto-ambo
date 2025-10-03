@@ -46,7 +46,6 @@ export default function OrderDetailPage() {
           setIsAdmin(userIsAdmin);
 
           if (userIsAdmin) {
-            // Admin: Find the order across all users using a collectionGroup query
             try {
               const q = firestoreQuery(
                 collectionGroup(firestore, 'orders'),
@@ -63,7 +62,6 @@ export default function OrderDetailPage() {
               setSearchError(queryError.message || 'Error searching for order');
             }
           } else {
-            // Regular user: path is in their own subcollection
             setOrderPath(`users/${user.uid}/orders/${orderId}`);
           }
         } catch (e: any) {
@@ -103,7 +101,7 @@ export default function OrderDetailPage() {
     }
   };
   
-  const showLoadingSkeleton = isLoading || !isRoleChecked || (isAdmin && !orderPath && !searchError);
+  const showLoadingSkeleton = isLoading || !isRoleChecked;
 
   if (showLoadingSkeleton) {
     return (
