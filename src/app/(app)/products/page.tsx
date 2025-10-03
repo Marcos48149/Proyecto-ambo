@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, FileUp } from 'lucide-react';
 import { ProductTable } from './components/ProductTable';
-import { useCollection } from '@/firebase';
+import { useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Product } from '@/lib/types';
@@ -11,7 +11,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProductsPage() {
   const firestore = useFirestore();
-  const productsQuery = query(collection(firestore, 'products'));
+  const productsQuery = useMemoFirebase(
+    () => (firestore ? query(collection(firestore, 'products')) : null),
+    [firestore]
+  );
   const {
     data: products,
     isLoading,

@@ -11,7 +11,7 @@ import {
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useCollection, useFirestore } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,7 +19,10 @@ import { UserNav } from '@/components/UserNav';
 
 export default function HomePage() {
   const firestore = useFirestore();
-  const productsQuery = query(collection(firestore, 'products'));
+  const productsQuery = useMemoFirebase(
+    () => (firestore ? query(collection(firestore, 'products')) : null),
+    [firestore]
+  );
   const { data: products, isLoading } = useCollection<Product>(
     productsQuery as any
   );
