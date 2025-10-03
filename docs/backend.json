@@ -235,7 +235,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profile information.  Path-based ownership ensures only the authenticated user can access their own profile data.",
+          "description": "Stores user profile information. Path-based ownership ensures only the authenticated user can access their own profile data.",
           "params": [
             {
               "name": "userId",
@@ -267,7 +267,7 @@
           "schema": {
             "$ref": "#/backend/entities/CartItem"
           },
-          "description": "Stores cart items associated with a specific user. Includes denormalized 'userId' for authorization independence.  This enables direct access to a user's cart without server-side lookups.",
+          "description": "Stores cart items associated with a specific user. Includes denormalized 'userId' for authorization independence. This enables direct access to a user's cart without server-side lookups.",
           "params": [
             {
               "name": "userId",
@@ -287,7 +287,7 @@
           "schema": {
             "$ref": "#/backend/entities/Order"
           },
-          "description": "Stores order details for a specific user. Includes denormalized 'userId' for authorization independence, ensuring only the user can access their order history.",
+          "description": "Stores order details for a specific user. Nesting orders under the user collection simplifies security rules and ensures data privacy.",
           "params": [
             {
               "name": "userId",
@@ -298,29 +298,47 @@
               "description": "The unique identifier of the order."
             }
           ]
-        }
+        },
+        "subcollections": [
+          {
+            "path": "/users/{userId}/orders/{orderId}/orderItems/{orderItemId}",
+            "definition": {
+              "entityName": "OrderItem",
+              "schema": {
+                "$ref": "#/backend/entities/OrderItem"
+              },
+              "description": "Stores specific product details within an order.",
+              "params": [
+                {
+                  "name": "userId",
+                  "description": "The unique identifier of the user."
+                },
+                {
+                  "name": "orderId",
+                  "description": "The unique identifier of the order."
+                },
+                {
+                  "name": "orderItemId",
+                  "description": "The unique identifier of the order item."
+                }
+              ]
+            }
+          }
+        ]
       },
       {
-        "path": "/orders/{orderId}/orderItems/{orderItemId}",
+        "path": "/orders/{orderId}",
         "definition": {
-          "entityName": "OrderItem",
-          "schema": {
-            "$ref": "#/backend/entities/OrderItem"
-          },
-          "description": "Stores specific product details within an order. Represents the relationship between Order and OrderItem.",
-          "params": [
-            {
-              "name": "orderId",
-              "description": "The unique identifier of the order."
+            "entityName": "Order",
+            "schema": {
+                "$ref": "#/backend/entities/Order"
             },
-            {
-              "name": "orderItemId",
-              "description": "The unique identifier of the order item."
-            }
-          ]
+            "description": "A root collection for all orders, allowing admins to query across all users' orders easily. Also used for anonymous POS sales."
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the e-commerce application's requirements, focusing on user authentication, product catalog, shopping cart, checkout, and order history. It emphasizes Authorization Independence via denormalization, Structural Segregation for homogeneous security posture, and standardized Access Modeling.  User data is segregated under `/users/{userId}`. Products are stored globally in `/products`. Cart items are stored as a subcollection of the user document `/users/{userId}/cartItems/{cartItemId}`. Orders are also kept as a subcollection under `/users/{userId}/orders/{orderId}`.  This approach ensures clear ownership and simplifies security rules. All documents within a collection share the same security requirements.  Authorization independence is achieved by storing the `userId` within each `cartItem` and `order`, eliminating the need for server-side lookups to validate ownership. This allows for secure and efficient data retrieval and management. The design facilitates secure `list` operations through path-based ownership (`/users/{userId}/orders`) and collection-based access (`/products`)."
+    "reasoning": "The Firestore structure is designed to support the e-commerce application's requirements, focusing on user authentication, product catalog, shopping cart, checkout, and order history. It emphasizes Authorization Independence via denormalization, Structural Segregation for homogeneous security posture, and standardized Access Modeling. User data is segregated under `/users/{userId}`. Products are stored globally in `/products`. Cart items are stored as a subcollection of the user document `/users/{userId}/cartItems/{cartItemId}`. Orders are now primarily stored as a subcollection under `/users/{userId}/orders/{orderId}` to ensure a user can only access their own orders. A root `/orders` collection is maintained for admin-level queries and anonymous sales."
   }
 }
+
+    

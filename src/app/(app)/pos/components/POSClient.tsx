@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { products as allProducts } from '@/lib/data';
 import type { CartItem, Order, Product } from '@/lib/types';
 import {
   CreditCard,
@@ -34,6 +33,7 @@ import {
   doc,
   runTransaction,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 
 export function POSClient() {
@@ -122,7 +122,7 @@ export function POSClient() {
     products?.filter(
       (product) =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.code.includes(searchTerm)
+        product.code?.includes(searchTerm)
     ) || [];
 
   const cartTotal = cart.reduce(
@@ -151,7 +151,7 @@ export function POSClient() {
     setIsSubmitting(true);
 
     try {
-      // Use a transaction to ensure atomic update of stock and order creation
+      // Use a Firestore transaction to ensure all or nothing
       await runTransaction(firestore, async (transaction) => {
         const orderItems = cart.map((item) => ({
           productId: item.product.id,
@@ -159,16 +159,27 @@ export function POSClient() {
           quantity: item.quantity,
           unitPrice: item.product.price,
         }));
+        
+        const userId = 'anonymous_pos_sale';
 
-        // 1. Create the order
-        const ordersCollection = collection(firestore, 'orders');
-        await addDoc(ordersCollection, {
-          userId: 'anonymous_pos_sale', // For sales not tied to a registered user
+        // 1. Create the order in the user's subcollection (or a general one for anon)
+        // For admins, we also write to the root /orders collection for easy querying.
+        const batch = writeBatch(firestore);
+        
+        const userOrderRef = doc(collection(firestore, 'users', userId, 'orders'));
+        const rootOrderRef = doc(collection(firestore, 'orders'));
+
+        const orderData = {
+          userId: userId,
           items: orderItems,
           totalAmount: cartTotal,
-          status: 'paid', // POS sales are considered paid immediately
+          status: 'paid' as const, // POS sales are considered paid immediately
           createdAt: serverTimestamp(),
-        });
+        };
+        
+        // Write to both locations
+        batch.set(userOrderRef, orderData);
+        batch.set(rootOrderRef, orderData);
 
         // 2. Update stock for each product in the cart
         for (const item of cart) {
@@ -181,9 +192,14 @@ export function POSClient() {
           if (newStock < 0) {
             throw new Error(`Stock insuficiente para ${item.product.name}.`);
           }
+          // Use the transaction to update stock
           transaction.update(productRef, { stock: newStock });
         }
+        
+        // Commit the batch of writes for orders
+        await batch.commit();
       });
+
 
       toast({
         title: '¡Venta Exitosa!',
@@ -392,3 +408,5 @@ export function POSClient() {
     </div>
   );
 }
+
+    

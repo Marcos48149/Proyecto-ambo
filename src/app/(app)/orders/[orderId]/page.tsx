@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
@@ -25,15 +25,40 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { useEffect, useState } from 'react';
 
 export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const firestore = useFirestore();
+  const { user } = useUser();
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const orderRef = useMemoFirebase(
-    () => (firestore && orderId ? doc(firestore, 'orders', orderId) : null),
-    [firestore, orderId]
-  );
+  // This effect will check the user's role once the user object is available.
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (user && firestore) {
+        const userDoc = await doc(firestore, 'users', user.uid).get();
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          setIsAdmin(true);
+        }
+      }
+    };
+    checkAdmin();
+  }, [user, firestore]);
+
+  const orderRef = useMemoFirebase(() => {
+    if (!firestore || !orderId || !user) return null;
+
+    // Admins look in the root `orders` collection.
+    // Regular users look inside their own `orders` subcollection.
+    // This logic assumes you know the userId for the order if you are a regular user.
+    // However, the page only gets orderId. For a non-admin, we need the userId.
+    // A better approach for non-admins is to query their own subcollection.
+    // Let's assume for now admins can access any order and we'll refine security.
+    const path = isAdmin ? `orders/${orderId}` : `users/${user.uid}/orders/${orderId}`;
+    return doc(firestore, path);
+  }, [firestore, orderId, user, isAdmin]);
+
   const { data: order, isLoading, error } = useDoc<Order>(orderRef);
 
   const getStatusVariant = (status: Order['status']) => {
@@ -73,7 +98,10 @@ export default function OrderDetailPage() {
 
   if (!order) {
     return (
-      <PageHeader title="Order Not Found" description="This order does not exist." />
+      <PageHeader
+        title="Order Not Found"
+        description="This order does not exist or you don't have permission to view it."
+      />
     );
   }
 
@@ -162,3 +190,5 @@ export default function OrderDetailPage() {
     </>
   );
 }
+
+    

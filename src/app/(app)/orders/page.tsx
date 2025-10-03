@@ -13,23 +13,43 @@ import {
   useCollection,
   useFirestore,
   useMemoFirebase,
+  useUser,
 } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, getDoc, doc, collectionGroup } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function OrdersPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const router = useRouter();
-  const ordersQuery = useMemoFirebase(
-    () =>
-      firestore
-        ? query(collection(firestore, 'orders'), orderBy('createdAt', 'desc'))
-        : null,
-    [firestore]
-  );
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // This effect will check the user's role once the user object is available.
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (user && firestore) {
+        const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          setIsAdmin(true);
+        }
+      }
+    };
+    checkAdmin();
+  }, [user, firestore]);
+
+  const ordersQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    
+    // Admins query the root `orders` collection to see all orders.
+    // Regular users query their own nested `orders` subcollection.
+    const path = isAdmin ? collection(firestore, 'orders') : collection(firestore, 'users', user.uid, 'orders');
+    return query(path, orderBy('createdAt', 'desc'));
+  }, [firestore, user, isAdmin]);
+
   const {
     data: orders,
     isLoading,
@@ -138,3 +158,5 @@ export default function OrdersPage() {
     </>
   );
 }
+
+    
