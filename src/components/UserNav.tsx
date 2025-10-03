@@ -11,26 +11,60 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAuth, useUser } from '@/firebase';
 import { LogOut, User as UserIcon, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export function UserNav() {
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/login');
+  };
+
+  if (isUserLoading) {
+    return (
+      <Avatar className="h-9 w-9">
+        <AvatarFallback>...</AvatarFallback>
+      </Avatar>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Button asChild>
+        <Link href="/login">Login</Link>
+      </Button>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src="https://i.pravatar.cc/150?u=admin@stockvision.com" alt="@shadcn" />
-            <AvatarFallback>AV</AvatarFallback>
+            <AvatarImage
+              src={user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`}
+              alt={user.displayName || user.email || 'User'}
+            />
+            <AvatarFallback>
+              {user.email?.charAt(0).toUpperCase()}
+            </AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Admin User</p>
+            <p className="text-sm font-medium leading-none">
+              {user.displayName || 'Usuario'}
+            </p>
             <p className="text-xs leading-none text-muted-foreground">
-              admin@stockvision.com
+              {user.email}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -38,19 +72,17 @@ export function UserNav() {
         <DropdownMenuGroup>
           <DropdownMenuItem>
             <UserIcon className="mr-2" />
-            <span>Profile</span>
+            <span>Perfil</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
             <Settings className="mr-2" />
-            <span>Settings</span>
+            <span>Configuración</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/login">
-            <LogOut className="mr-2" />
-            <span>Log out</span>
-          </Link>
+        <DropdownMenuItem onClick={handleLogout}>
+          <LogOut className="mr-2" />
+          <span>Cerrar Sesión</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

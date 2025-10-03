@@ -1,5 +1,6 @@
+'use client';
+
 import { ProductCard } from '@/components/ProductCard';
-import { products } from '@/lib/data';
 import {
   Carousel,
   CarouselContent,
@@ -10,9 +11,20 @@ import {
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useCollection, useFirestore } from '@/firebase';
+import { collection, query } from 'firebase/firestore';
+import type { Product } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
+import { UserNav } from '@/components/UserNav';
 
 export default function HomePage() {
-  const featuredProducts = products.slice(0, 5);
+  const firestore = useFirestore();
+  const productsQuery = query(collection(firestore, 'products'));
+  const { data: products, isLoading } = useCollection<Product>(
+    productsQuery as any
+  );
+
+  const featuredProducts = products?.slice(0, 5) || [];
 
   return (
     <div className="bg-background text-foreground">
@@ -37,10 +49,7 @@ export default function HomePage() {
             <span className="font-bold text-lg">Ambos Web</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-            <Link
-              href="/"
-              className="transition-colors hover:text-primary"
-            >
+            <Link href="/" className="transition-colors hover:text-primary">
               Inicio
             </Link>
             <Link
@@ -56,7 +65,9 @@ export default function HomePage() {
               Admin
             </Link>
           </nav>
-          <Button>Comprar Ahora</Button>
+          <div className="flex items-center gap-4">
+            <UserNav />
+          </div>
         </div>
       </header>
 
@@ -66,10 +77,10 @@ export default function HomePage() {
           <Image
             src="https://picsum.photos/seed/hero/1200/800"
             alt="Profesionales médicos con uniformes"
-            layout="fill"
-            objectFit="cover"
-            className="brightness-50"
+            fill
+            className="brightness-50 object-cover"
             data-ai-hint="medical professionals scrubs"
+            priority
           />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-primary-foreground">
             <h1 className="text-4xl font-bold md:text-6xl">
@@ -95,37 +106,52 @@ export default function HomePage() {
               Una selección de nuestros ambos más populares y mejor valorados.
             </p>
             <div className="mt-12">
-              <Carousel
-                opts={{
-                  align: 'start',
-                  loop: true,
-                }}
-                className="w-full"
-              >
-                <CarouselContent>
-                  {featuredProducts.map((product) => (
-                    <CarouselItem
-                      key={product.id}
-                      className="md:basis-1/2 lg:basis-1/3"
-                    >
-                      <div className="p-1">
-                        <ProductCard product={product} />
-                      </div>
-                    </CarouselItem>
+              {isLoading ? (
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="space-y-4">
+                      <Skeleton className="h-[400px] w-full" />
+                      <Skeleton className="h-6 w-3/4" />
+                      <Skeleton className="h-8 w-1/2" />
+                    </div>
                   ))}
-                </CarouselContent>
-                <CarouselPrevious className="ml-12" />
-                <CarouselNext className="mr-12" />
-              </Carousel>
+                </div>
+              ) : (
+                <Carousel
+                  opts={{
+                    align: 'start',
+                    loop: true,
+                  }}
+                  className="w-full"
+                >
+                  <CarouselContent>
+                    {featuredProducts.map((product) => (
+                      <CarouselItem
+                        key={product.id}
+                        className="md:basis-1/2 lg:basis-1/3"
+                      >
+                        <div className="p-1">
+                          <ProductCard product={product} />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="ml-12" />
+                  <CarouselNext className="mr-12" />
+                </Carousel>
+              )}
             </div>
           </div>
         </section>
       </main>
 
-       {/* Footer */}
-       <footer className="border-t bg-muted/20">
+      {/* Footer */}
+      <footer className="border-t bg-muted/20">
         <div className="container mx-auto py-8 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Ambos Web. Todos los derechos reservados.</p>
+          <p>
+            &copy; {new Date().getFullYear()} Ambos Web. Todos los derechos
+            reservados.
+          </p>
         </div>
       </footer>
     </div>

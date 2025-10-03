@@ -6,10 +6,10 @@ import Link from 'next/link';
 import {
   getFirestore,
   doc,
-  getDoc,
-  DocumentData,
+  setDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
-import { signInWithEmailAndPassword, User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -25,73 +25,69 @@ import { Store } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirebaseApp } from '@/firebase';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
   const firebaseApp = useFirebaseApp();
   const auth = useAuth();
-  const [email, setEmail] = useState('admin@stockvision.com');
-  const [password, setPassword] = useState('password');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignIn = async () => {
+  const handleSignUp = async () => {
+    if (!name || !email || !password) {
+      toast({
+        title: 'Campos incompletos',
+        description: 'Por favor, completa todos los campos.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsLoading(true);
+
     try {
-      const userCredential = await signInWithEmailAndPassword(
+      const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
         password
       );
       const user = userCredential.user;
-      await handleLoginRedirect(user);
-    } catch (error: any) {
-      console.error('Login failed:', error);
-      toast({
-        title: 'Error de inicio de sesión',
-        description:
-          'Las credenciales son incorrectas. Por favor, inténtalo de nuevo.',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
-    }
-  };
 
-  const handleLoginRedirect = async (user: User) => {
-    if (!user) return;
+      // Update user profile in Firebase Auth
+      await updateProfile(user, { displayName: name });
 
-    try {
+      // Create user document in Firestore
       const db = getFirestore(firebaseApp);
       const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        name: name,
+        email: user.email,
+        role: 'cliente', // Default role for new sign-ups
+        createdAt: serverTimestamp(),
+      });
 
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as DocumentData;
-        toast({
-          title: 'Inicio de sesión exitoso',
-          description: `Bienvenido de nuevo, ${
-            userData.name || 'usuario'
-          }.`,
-        });
-
-        if (userData.role === 'admin') {
-          router.push('/dashboard');
-        } else {
-          router.push('/');
-        }
-      } else {
-        // This case might happen if user doc creation failed during sign-up
-        throw new Error('User data not found in Firestore.');
-      }
-    } catch (error) {
-      console.error('Failed to fetch user role:', error);
       toast({
-        title: 'Error',
-        description:
-          'No se pudo verificar tu rol. Por favor, contacta a soporte.',
+        title: '¡Registro exitoso!',
+        description: 'Tu cuenta ha sido creada.',
+      });
+
+      router.push('/'); // Redirect to home page after successful registration
+    } catch (error: any) {
+      console.error('Registration failed:', error);
+      let description =
+        'Ocurrió un error durante el registro. Por favor, inténtalo de nuevo.';
+      if (error.code === 'auth/email-already-in-use') {
+        description = 'Este correo electrónico ya está en uso.';
+      } else if (error.code === 'auth/weak-password') {
+        description = 'La contraseña debe tener al menos 6 caracteres.';
+      }
+      toast({
+        title: 'Error de registro',
+        description,
         variant: 'destructive',
       });
-      // Log out the user if their data is inconsistent
-      await auth.signOut();
       setIsLoading(false);
     }
   };
@@ -104,12 +100,24 @@ export default function LoginPage() {
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">Crear una cuenta</CardTitle>
           <CardDescription>
-            Ingresa tu email para acceder a tu cuenta.
+            Ingresa tus datos para registrarte.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Nombre</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="Juan Pérez"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -137,15 +145,15 @@ export default function LoginPage() {
         <CardFooter className="flex-col gap-4">
           <Button
             className="w-full"
-            onClick={handleSignIn}
+            onClick={handleSignUp}
             disabled={isLoading}
           >
-            {isLoading ? 'Ingresando...' : 'Iniciar Sesión'}
+            {isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
-            ¿No tienes una cuenta?{' '}
-            <Link href="/register" className="font-semibold underline">
-              Regístrate aquí
+            ¿Ya tienes una cuenta?{' '}
+            <Link href="/login" className="font-semibold underline">
+              Inicia sesión
             </Link>
           </p>
         </CardFooter>
