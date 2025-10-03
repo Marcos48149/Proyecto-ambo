@@ -22,40 +22,52 @@ import { collection, query, doc, getDocs } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserNav } from '@/components/UserNav';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { products as sampleProducts } from '@/lib/data';
 
 export default function HomePage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
+  const [isSeeding, setIsSeeding] = useState(false);
 
   // Seed database with sample products if it's empty
   useEffect(() => {
     const seedDatabase = async () => {
       // Wait for user to be loaded and firestore to be available
-      if (isUserLoading || !firestore || !user) return;
+      if (isUserLoading || !firestore || !user || isSeeding) return;
       
-      const productsCollection = collection(firestore, 'products');
-      const snapshot = await getDocs(productsCollection);
-      
-      if (snapshot.empty) {
-        console.log('No products found, seeding database...');
-        const promises = sampleProducts.map((product) => {
-          const productDoc = doc(productsCollection, product.id);
-          // Use a non-blocking write to avoid waiting for the promise to resolve
-          return setDocumentNonBlocking(productDoc, product, {});
-        });
-        await Promise.all(promises);
-        console.log('Database seeded!');
+      try {
+        setIsSeeding(true);
+        const productsCollection = collection(firestore, 'products');
+        const snapshot = await getDocs(productsCollection);
+        
+        if (snapshot.empty) {
+          console.log('No products found, seeding database...');
+          const promises = sampleProducts.map((product) => {
+            const productDoc = doc(productsCollection, product.id);
+            return setDocumentNonBlocking(productDoc, product, {});
+          });
+          await Promise.all(promises);
+          console.log('Database seeded!');
+        }
+      } catch (error) {
+        console.error('Error seeding database:', error);
+      } finally {
+        setIsSeeding(false);
       }
     };
     seedDatabase();
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, user, isUserLoading, isSeeding]);
 
-  const productsQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'products')) : null),
-    [firestore]
-  );
+  // Only create the query if firestore is available
+  const productsQuery = useMemoFirebase(() => {
+    if (!firestore) {
+      console.log('Firestore not ready yet');
+      return null;
+    }
+    return query(collection(firestore, 'products'));
+  }, [firestore]);
+
   const { data: products, isLoading } = useCollection<Product>(productsQuery);
 
   const featuredProducts = products || [];
@@ -134,7 +146,7 @@ export default function HomePage() {
               Una selección de nuestros ambos más populares y mejor valorados.
             </p>
             <div className="mt-12">
-              {isLoading || products?.length === 0 ? (
+              {isLoading || !products || products.length === 0 ? (
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {[...Array(3)].map((_, i) => (
                     <div key={i} className="space-y-4">
@@ -153,7 +165,7 @@ export default function HomePage() {
                   className="w-full"
                 >
                   <CarouselContent>
-                    {(featuredProducts ?? []).map((product) => (
+                    {featuredProducts.map((product) => (
                       <CarouselItem
                         key={product.id}
                         className="md:basis-1/2 lg:basis-1/3"

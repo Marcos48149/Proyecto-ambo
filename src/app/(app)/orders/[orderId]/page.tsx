@@ -32,6 +32,7 @@ export default function OrderDetailPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRoleChecked, setIsRoleChecked] = useState(false);
   const [orderPath, setOrderPath] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkRoleAndFindOrder = async () => {
@@ -43,23 +44,29 @@ export default function OrderDetailPage() {
 
           if (userIsAdmin) {
             // Admin: Find the order across all users using a collectionGroup query
-            const q = query(
-              collectionGroup(firestore, 'orders'),
-              where('id', '==', orderId)
-            );
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-              // Assuming order IDs are unique, take the first one found
-              setOrderPath(querySnapshot.docs[0].ref.path);
+            try {
+              const q = query(
+                collectionGroup(firestore, 'orders'),
+                where('id', '==', orderId)
+              );
+              const querySnapshot = await getDocs(q);
+              if (!querySnapshot.empty) {
+                setOrderPath(querySnapshot.docs[0].ref.path);
+              } else {
+                setSearchError('Order not found');
+              }
+            } catch (queryError: any) {
+              console.error('Error querying orders:', queryError);
+              setSearchError(queryError.message || 'Error searching for order');
             }
           } else {
             // Regular user: path is in their own subcollection
             setOrderPath(`users/${user.uid}/orders/${orderId}`);
           }
-        } catch(e) {
-            console.error("Error finding order:", e);
-        }
-        finally {
+        } catch (e: any) {
+          console.error('Error finding order:', e);
+          setSearchError(e.message || 'Error loading order');
+        } finally {
           setIsRoleChecked(true);
         }
       } else if (!user) {
@@ -70,9 +77,7 @@ export default function OrderDetailPage() {
   }, [user, firestore, orderId]);
 
   const orderRef = useMemoFirebase(() => {
-    // Wait until the role check is complete and we have a path
     if (!firestore || !orderPath || !isRoleChecked) return null;
-
     return doc(firestore, orderPath);
   }, [firestore, orderPath, isRoleChecked]);
 
@@ -95,7 +100,7 @@ export default function OrderDetailPage() {
     }
   };
 
-  if (isLoading || !isRoleChecked || (isAdmin && !orderPath)) {
+  if (isLoading || !isRoleChecked || (isAdmin && !orderPath && !searchError)) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-1/3" />
@@ -109,8 +114,19 @@ export default function OrderDetailPage() {
     );
   }
 
-  if (error) {
-    return <PageHeader title="Error" description={error.message} />;
+  if (error || searchError) {
+    return (
+      <div>
+        <PageHeader title="Error" description="" />
+        <div className="mt-4 p-4 bg-destructive/10 text-destructive rounded-lg">
+          <p className="font-semibold">Error loading order:</p>
+          <p className="text-sm mt-1">{error?.message || searchError}</p>
+          <p className="text-xs mt-2">
+            Please check your Firestore Security Rules and ensure you have the correct permissions.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (!order) {

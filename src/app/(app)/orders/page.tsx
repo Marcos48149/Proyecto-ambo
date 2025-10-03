@@ -15,7 +15,7 @@ import {
   useMemoFirebase,
   useUser,
 } from '@/firebase';
-import { collection, query, orderBy, getDoc, doc, collectionGroup } from 'firebase/firestore';
+import { collection, orderBy, getDoc, doc, collectionGroup, query } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
@@ -29,7 +29,6 @@ export default function OrdersPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRoleChecked, setIsRoleChecked] = useState(false);
 
-  // This effect will check the user's role once the user object is available.
   useEffect(() => {
     const checkAdmin = async () => {
       if (user && firestore) {
@@ -38,27 +37,36 @@ export default function OrdersPage() {
           if (userDoc.exists() && userDoc.data().role === 'admin') {
             setIsAdmin(true);
           }
+        } catch (error) {
+          console.error('Error checking admin role:', error);
         } finally {
-          setIsRoleChecked(true); // Mark role check as complete
+          setIsRoleChecked(true);
         }
       } else if (!user) {
-        setIsRoleChecked(true); // If no user, check is also "complete"
+        setIsRoleChecked(true);
       }
     };
     checkAdmin();
   }, [user, firestore]);
 
   const ordersQuery = useMemoFirebase(() => {
-    // Wait until the role check is complete before creating a query.
-    if (!firestore || !user || !isRoleChecked) return null;
+    if (!firestore || !user || !isRoleChecked) {
+      return null;
+    }
 
-    // Admins query the collection group 'orders' to see all orders across all users.
-    // Regular users query their own nested `orders` subcollection.
-    const path = isAdmin
-      ? collectionGroup(firestore, 'orders')
-      : collection(firestore, 'users', user.uid, 'orders');
-
-    return query(path, orderBy('createdAt', 'desc'));
+    try {
+      if (isAdmin) {
+        // Admin: query all orders using collectionGroup
+        return query(collectionGroup(firestore, 'orders'), orderBy('createdAt', 'desc'));
+      } else {
+        // Regular user: query their own orders
+        const userOrdersRef = collection(firestore, 'users', user.uid, 'orders');
+        return query(userOrdersRef, orderBy('createdAt', 'desc'));
+      }
+    } catch (error) {
+      console.error('Error creating orders query:', error);
+      return null;
+    }
   }, [firestore, user, isAdmin, isRoleChecked]);
 
   const {
@@ -89,7 +97,18 @@ export default function OrdersPage() {
   };
 
   if (error) {
-    return <div>Error: {error.message}</div>;
+    return (
+      <div className="p-4">
+        <PageHeader title="Error" description="" />
+        <div className="mt-4 p-4 bg-destructive/10 text-destructive rounded-lg">
+          <p className="font-semibold">Error loading orders:</p>
+          <p className="text-sm mt-1">{error.message}</p>
+          <p className="text-xs mt-2">
+            Please check your Firestore Security Rules and ensure you have the correct permissions.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const showLoadingSkeleton = isLoading || !isRoleChecked;
@@ -137,10 +156,12 @@ export default function OrdersPage() {
                 <TableRow
                   key={order.id}
                   onClick={() => handleRowClick(order.id)}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-muted/50"
                 >
                   <TableCell className="font-medium truncate max-w-32">{order.id}</TableCell>
-                  <TableCell className="truncate max-w-40">{order.userId === 'anonymous_pos_sale' ? 'POS Sale' : order.userId}</TableCell>
+                  <TableCell className="truncate max-w-40">
+                    {order.userId === 'anonymous_pos_sale' ? 'POS Sale' : order.userId}
+                  </TableCell>
                   <TableCell>
                     {order.createdAt
                       ? format(order.createdAt.toDate(), 'PPP')
