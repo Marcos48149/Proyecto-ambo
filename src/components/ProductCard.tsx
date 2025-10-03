@@ -19,6 +19,8 @@ type ProductCardProps = {
 };
 
 export function ProductCard({ product }: ProductCardProps) {
+  const stockAvailable = product.stock > 0;
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="p-0">
@@ -31,19 +33,22 @@ export function ProductCard({ product }: ProductCardProps) {
           data-ai-hint={product.imageHint}
         />
       </CardHeader>
-      <CardContent className="p-4">
-        <Badge variant="secondary" className="mb-2">
-          {product.category}
-        </Badge>
-        <CardTitle className="text-lg">{product.name}</CardTitle>
+      <CardContent className="p-4 pb-2">
+        <div className="flex items-center justify-between">
+          <Badge variant="secondary">{product.category}</Badge>
+          <Badge variant={stockAvailable ? 'outline' : 'destructive'}>
+            {stockAvailable ? `Stock: ${product.stock}` : 'Agotado'}
+          </Badge>
+        </div>
+        <CardTitle className="mt-2 text-lg">{product.name}</CardTitle>
         <CardDescription className="mt-2 text-2xl font-bold text-primary">
           ${product.price.toFixed(2)}
         </CardDescription>
       </CardContent>
       <CardFooter className="p-4 pt-0">
-        <Button className="w-full">
+        <Button className="w-full" disabled={!stockAvailable}>
           <ShoppingCart className="mr-2 h-4 w-4" />
-          Agregar al Carrito
+          {stockAvailable ? 'Agregar al Carrito' : 'Sin Stock'}
         </Button>
       </CardFooter>
     </Card>
