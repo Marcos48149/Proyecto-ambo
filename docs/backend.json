@@ -1,203 +1,326 @@
-
 {
   "entities": {
     "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
-      "description": "Represents a user in the system, who can be a customer or an administrator.",
       "type": "object",
+      "description": "Represents a user of the e-commerce platform, authenticated via Firebase Auth.",
       "properties": {
-        "uid": {
+        "id": {
           "type": "string",
-          "description": "The unique identifier from Firebase Authentication."
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the user."
+          "description": "Unique identifier for the user, provided by Firebase Auth.",
+          "format": "uuid"
         },
         "email": {
           "type": "string",
-          "format": "email",
-          "description": "The user's email address."
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile photo.",
+          "format": "uri"
         },
         "role": {
           "type": "string",
-          "description": "The role of the user, determining their permissions.",
-          "enum": ["cliente", "admin"]
-        },
-        "phone": {
-          "type": "string",
-          "description": "The user's phone number (optional)."
-        },
-        "address": {
-          "type": "string",
-          "description": "The user's shipping address (optional)."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the user account was created."
+          "description": "The role of the user; can only be 'client' in this context."
         }
       },
-      "required": ["uid", "name", "email", "role", "createdAt"]
+      "required": [
+        "id",
+        "email",
+        "role"
+      ]
     },
     "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Product",
-      "description": "Represents a piece of professional clothing available for sale.",
       "type": "object",
+      "description": "Represents a product available in the e-commerce store, stored in Firestore.",
       "properties": {
-        "productId": {
+        "id": {
           "type": "string",
-          "description": "The unique identifier for the product (Firestore autoID)."
+          "description": "Unique identifier for the product."
         },
         "name": {
           "type": "string",
-          "description": "The name of the product."
+          "description": "Name of the product."
         },
         "description": {
           "type": "string",
-          "description": "A detailed description of the product."
-        },
-        "category": {
-          "type": "string",
-          "description": "The category the product belongs to (e.g., 'batas', 'pantalones')."
+          "description": "Detailed description of the product."
         },
         "price": {
           "type": "number",
-          "description": "The price of the product."
+          "description": "Price of the product."
         },
-        "stock": {
-          "type": "number",
-          "description": "The total stock quantity available for the product across all sizes."
+        "category": {
+          "type": "string",
+          "description": "Category of the product."
         },
-        "sizes": {
+        "availableSizes": {
           "type": "array",
-          "description": "An array of available sizes for the product.",
+          "description": "Available sizes for the product.",
           "items": {
             "type": "string"
           }
         },
-        "images": {
+        "stock": {
+          "type": "number",
+          "description": "Current stock level of the product."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the main product image, stored in Firebase Storage.",
+          "format": "uri"
+        },
+        "imageUrls": {
           "type": "array",
-          "description": "An array of URLs pointing to the product images in Firebase Storage.",
+          "description": "URLs of additional product images, stored in Firebase Storage.",
           "items": {
-            "type": "string",
-            "format": "uri"
+            "type": "string"
           }
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the product was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the product was last updated."
         }
       },
-      "required": ["productId", "name", "description", "category", "price", "stock", "sizes", "images", "createdAt", "updatedAt"]
+      "required": [
+        "id",
+        "name",
+        "price",
+        "category",
+        "availableSizes",
+        "stock",
+        "imageUrl"
+      ]
     },
-    "Order": {
-      "title": "Order",
-      "description": "Represents a customer's order.",
+    "CartItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CartItem",
       "type": "object",
+      "description": "Represents an item in the user's shopping cart. Stored in Firestore or localStorage.",
       "properties": {
-        "orderId": {
+        "id": {
           "type": "string",
-          "description": "The unique identifier for the order (Firestore autoID)."
+          "description": "Unique identifier for the cart item."
         },
         "userId": {
           "type": "string",
-          "description": "The UID of the user who placed the order."
+          "description": "Reference to User. (Relationship: User 1:N CartItem)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to Product. (Relationship: Product 1:N CartItem)"
+        },
+        "size": {
+          "type": "string",
+          "description": "Selected size of the product."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the product in the cart."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "productId",
+        "size",
+        "quantity"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents a customer order, stored in Firestore.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Order)"
         },
         "products": {
           "type": "array",
-          "description": "An array of products included in the order.",
+          "description": "List of products included in the order.",
           "items": {
-            "type": "object",
-            "properties": {
-              "productId": { "type": "string" },
-              "name": { "type": "string" },
-              "size": { "type": "string" },
-              "quantity": { "type": "number" },
-              "priceUnit": { "type": "number" }
-            },
-            "required": ["productId", "name", "size", "quantity", "priceUnit"]
+            "type": "string"
           }
         },
         "totalAmount": {
           "type": "number",
-          "description": "The total amount of the order."
+          "description": "Total amount of the order."
         },
         "status": {
           "type": "string",
-          "description": "The current status of the order.",
-          "enum": ["pending", "paid", "shipped", "delivered", "cancelled"]
+          "description": "Status of the order (pending, paid, shipped, delivered, cancelled)."
         },
         "createdAt": {
           "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the order was created."
+          "description": "Timestamp of when the order was created.",
+          "format": "date-time"
         }
       },
-      "required": ["orderId", "userId", "products", "totalAmount", "status", "createdAt"]
+      "required": [
+        "id",
+        "userId",
+        "products",
+        "totalAmount",
+        "status",
+        "createdAt"
+      ]
     },
-    "Cart": {
-        "title": "Cart",
-        "description": "Represents a user's shopping cart.",
-        "type": "object",
-        "properties": {
-          "cartId": {
-            "type": "string",
-            "description": "The unique identifier for the cart (Firestore autoID)."
-          },
-          "userId": {
-            "type": "string",
-            "description": "The UID of the user this cart belongs to."
-          },
-          "products": {
-            "type": "array",
-            "description": "An array of products in the cart.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "productId": { "type": "string" },
-                "name": { "type": "string" },
-                "size": { "type": "string" },
-                "quantity": { "type": "number" },
-                "priceUnit": { "type": "number" }
-              },
-              "required": ["productId", "name", "size", "quantity", "priceUnit"]
-            }
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The timestamp when the cart was last updated."
-          }
+    "OrderItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OrderItem",
+      "type": "object",
+      "description": "Represents a specific product within an order.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order item."
         },
-        "required": ["cartId", "userId", "products", "updatedAt"]
+        "orderId": {
+          "type": "string",
+          "description": "Reference to Order. (Relationship: Order 1:N OrderItem)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to Product. (Relationship: Product 1:N OrderItem)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the product."
+        },
+        "size": {
+          "type": "string",
+          "description": "The size of the product ordered."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the product ordered."
+        },
+        "unitPrice": {
+          "type": "number",
+          "description": "Price of one unit of the product at the time of the order."
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "productId",
+        "quantity",
+        "unitPrice",
+        "name"
+      ]
     }
   },
   "auth": {
-    "providers": ["email_password"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": { "$ref": "#/entities/User" },
-      "description": "Stores user profile information."
-    },
-    "/products/{productId}": {
-      "schema": { "$ref": "#/entities/Product" },
-      "description": "Stores all available products for the e-commerce store."
-    },
-    "/orders/{orderId}": {
-      "schema": { "$ref": "#/entities/Order" },
-      "description": "Stores all customer orders."
-    },
-    "/users/{userId}/cart/{cartId}": {
-        "schema": { "$ref": "#/entities/Cart" },
-        "description": "Stores the user's shopping cart. It is a subcollection of the user."
-    }
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information.  Path-based ownership ensures only the authenticated user can access their own profile data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, obtained from Firebase Auth."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Stores product details. Products are globally accessible for reading but restricted for modification to authorized roles (e.g., admin).",
+          "params": [
+            {
+              "name": "productId",
+              "description": "The unique identifier of the product."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/cartItems/{cartItemId}",
+        "definition": {
+          "entityName": "CartItem",
+          "schema": {
+            "$ref": "#/backend/entities/CartItem"
+          },
+          "description": "Stores cart items associated with a specific user. Includes denormalized 'userId' for authorization independence.  This enables direct access to a user's cart without server-side lookups.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "cartItemId",
+              "description": "The unique identifier of the cart item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores order details for a specific user. Includes denormalized 'userId' for authorization independence, ensuring only the user can access their order history.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}/orderItems/{orderItemId}",
+        "definition": {
+          "entityName": "OrderItem",
+          "schema": {
+            "$ref": "#/backend/entities/OrderItem"
+          },
+          "description": "Stores specific product details within an order. Represents the relationship between Order and OrderItem.",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the order."
+            },
+            {
+              "name": "orderItemId",
+              "description": "The unique identifier of the order item."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support the e-commerce application's requirements, focusing on user authentication, product catalog, shopping cart, checkout, and order history. It emphasizes Authorization Independence via denormalization, Structural Segregation for homogeneous security posture, and standardized Access Modeling.  User data is segregated under `/users/{userId}`. Products are stored globally in `/products`. Cart items are stored as a subcollection of the user document `/users/{userId}/cartItems/{cartItemId}`. Orders are also kept as a subcollection under `/users/{userId}/orders/{orderId}`.  This approach ensures clear ownership and simplifies security rules. All documents within a collection share the same security requirements.  Authorization independence is achieved by storing the `userId` within each `cartItem` and `order`, eliminating the need for server-side lookups to validate ownership. This allows for secure and efficient data retrieval and management. The design facilitates secure `list` operations through path-based ownership (`/users/{userId}/orders`) and collection-based access (`/products`)."
   }
 }

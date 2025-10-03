@@ -1,0 +1,146 @@
+/**
+ * @fileoverview Firestore Security Rules for an e-commerce application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles, cart items, and order history,
+ * while allowing public read access to the product catalog. Write access to product data and order items
+ * are restricted.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information, accessible only by the user themselves.
+ * - /products/{productId}: Stores product details, publicly readable but write-protected.
+ * - /users/{userId}/cartItems/{cartItemId}: Stores cart items, accessible only by the owning user. Includes the userId.
+ * - /users/{userId}/orders/{orderId}: Stores order history, accessible only by the owning user. Includes the userId.
+ * - /orders/{orderId}/orderItems/{orderItemId}: stores product details within an order, write protected.
+ *
+ * Key Security Decisions:
+ * - Users can only access their own profile data, cart items, and order history.
+ * - The product catalog is publicly readable to facilitate browsing.
+ * - Listing all users is disallowed for privacy reasons.
+ * - Data validation is relaxed for rapid prototyping, focusing on ownership and relationship integrity.
+ *
+ * Denormalization for Authorization:
+ * - CartItem documents contain a `userId` field to allow direct ownership checks without server-side lookups.
+ * - Order documents contain a `userId` field to allow direct ownership checks without server-side lookups.
+ *
+ * Structural Segregation:
+ * - User-specific data (profiles, cart items, orders) is stored under the /users/{userId} path, ensuring clear ownership and separation from public data like products.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Grants access to user profile data.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user123' can create their profile.
+     * @allow (get) User with ID 'user123' can read their profile.
+     * @allow (update) User with ID 'user123' can update their profile.
+     * @allow (delete) User with ID 'user123' can delete their profile.
+     * @deny (create) User with ID 'user456' cannot create a profile for 'user123'.
+     * @deny (get) User with ID 'user456' cannot read the profile of 'user123'.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      // isOwner() checks if request.auth.uid == userId.
+      allow get: if isOwner(userId);
+      allow list: if false; // Listing all users is not permitted.
+      allow create: if isSignedIn() && isSelfCreation(userId);
+      allow update: if isExistingOwner(userId) && isUserIdNotModifiedOnUpdate(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants public read access to product details while restricting write access.
+     * @path /products/{productId}
+     * @allow (get) Any user can read product details.
+     * @allow (list) Any user can list products.
+     * @deny (create) Any user cannot create a product.
+     * @deny (update) Any user cannot update a product.
+     * @deny (delete) Any user cannot delete a product.
+     * @principle Public read access with owner-only writes (owner to be defined later).
+     */
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Grants access to cart items for the owning user.
+     * @path /users/{userId}/cartItems/{cartItemId}
+     * @allow (create) User with ID 'user123' can add an item to their cart.
+     * @allow (get) User with ID 'user123' can read an item from their cart.
+     * @allow (update) User with ID 'user123' can update an item in their cart.
+     * @allow (delete) User with ID 'user123' can delete an item from their cart.
+     * @deny (create) User with ID 'user456' cannot add an item to 'user123' cart.
+     * @deny (get) User with ID 'user456' cannot read an item from 'user123' cart.
+     * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+     */
+    match /users/{userId}/cartItems/{cartItemId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && resource.data.userId == request.resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+     /**
+      * @description Grants access to order history for the owning user.
+      * @path /users/{userId}/orders/{orderId}
+      * @allow (create) User with ID 'user123' can create an order.
+      * @allow (get) User with ID 'user123' can read their order history.
+      * @allow (update) User with ID 'user123' can update their order details.
+      * @allow (delete) User with ID 'user123' can delete their order.
+      * @deny (create) User with ID 'user456' cannot create an order for 'user123'.
+      * @deny (get) User with ID 'user456' cannot read the order history of 'user123'.
+      * @principle Enforces document ownership for writes, restricts access to a user's own data tree.
+      */
+    match /users/{userId}/orders/{orderId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && resource.data.userId == request.resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Restricts access to order items (details within an order).
+     * @path /orders/{orderId}/orderItems/{orderItemId}
+     * @deny (create) No one can create an order item through the client.
+     * @deny (get) No one can get an order item through the client.
+     * @deny (update) No one can update an order item through the client.
+     * @deny (delete) No one can delete an order item through the client.
+     * @principle Restricts access to a specific collection.
+     */
+    match /orders/{orderId}/orderItems/{orderItemId} {
+      allow get, list, create, update, delete: if false;
+    }
+
+    // ---- Helper functions ----
+
+    // Returns true if the user is signed in.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Returns true if the user is the owner of the document.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Returns true if the user is creating their own user document.
+    function isSelfCreation(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Returns true if the user is the owner of the existing document.
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // Returns true if the userId is not modified on update.
+    function isUserIdNotModifiedOnUpdate(userId) {
+        return resource.data.userId == userId;
+    }
+  }
+}
