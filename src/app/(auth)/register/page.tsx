@@ -30,9 +30,9 @@ export default function RegisterPage() {
   const { toast } = useToast();
   const firebaseApp = useFirebaseApp();
   const auth = useAuth();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState('Admin');
+  const [email, setEmail] = useState('admin@stockvision.com');
+  const [password, setPassword] = useState('password');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignUp = async () => {
@@ -57,6 +57,10 @@ export default function RegisterPage() {
       // Update user profile in Firebase Auth
       await updateProfile(user, { displayName: name });
 
+      // Determine user role
+      const userRole =
+        email === 'admin@stockvision.com' ? 'admin' : 'cliente';
+
       // Create user document in Firestore
       const db = getFirestore(firebaseApp);
       const userDocRef = doc(db, 'users', user.uid);
@@ -64,7 +68,7 @@ export default function RegisterPage() {
         uid: user.uid,
         name: name,
         email: user.email,
-        role: 'cliente', // Default role for new sign-ups
+        role: userRole,
         createdAt: serverTimestamp(),
       });
 
@@ -73,13 +77,19 @@ export default function RegisterPage() {
         description: 'Tu cuenta ha sido creada.',
       });
 
-      router.push('/'); // Redirect to home page after successful registration
+      // Redirect based on role
+      if (userRole === 'admin') {
+        router.push('/dashboard');
+      } else {
+        router.push('/');
+      }
     } catch (error: any) {
       console.error('Registration failed:', error);
       let description =
         'Ocurrió un error durante el registro. Por favor, inténtalo de nuevo.';
       if (error.code === 'auth/email-already-in-use') {
-        description = 'Este correo electrónico ya está en uso.';
+        description =
+          'Este correo electrónico ya está en uso. Intenta iniciar sesión.';
       } else if (error.code === 'auth/weak-password') {
         description = 'La contraseña debe tener al menos 6 caracteres.';
       }
