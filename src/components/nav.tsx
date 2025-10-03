@@ -16,6 +16,7 @@ import {
   BarChart4,
   Settings,
   Store,
+  Receipt,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -24,6 +25,7 @@ const menuItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/pos', icon: ShoppingCart, label: 'POS' },
   { href: '/products', icon: Package, label: 'Products' },
+  { href: '/orders', icon: Receipt, label: 'Orders' },
   { href: '/stock', icon: Warehouse, label: 'Stock Control' },
   { href: '/reports', icon: BarChart4, label: 'Reports' },
 ];
@@ -47,7 +49,7 @@ export function Nav() {
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild
-                isActive={pathname === item.href}
+                isActive={pathname.startsWith(item.href)}
                 tooltip={item.label}
               >
                 <Link href={item.href}>

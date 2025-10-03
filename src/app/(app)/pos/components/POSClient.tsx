@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { products as allProducts } from '@/lib/data';
-import type { CartItem, Product } from '@/lib/types';
+import type { CartItem, Order, Product } from '@/lib/types';
 import {
   CreditCard,
   DollarSign,
@@ -27,18 +27,50 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import {
+  addDoc,
+  collection,
+  doc,
+  runTransaction,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 export function POSClient() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
+
+  const productsQuery = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'products') : null),
+    [firestore]
+  );
+  const { data: products, isLoading } = useCollection<Product>(productsQuery);
 
   const addToCart = (product: Product) => {
+    if (product.stock <= 0) {
+      toast({
+        title: 'Sin Stock',
+        description: `${product.name} no está disponible.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     setCart((prevCart) => {
       const existingItem = prevCart.find(
         (item) => item.product.id === product.id
       );
       if (existingItem) {
+        if (existingItem.quantity >= product.stock) {
+          toast({
+            title: 'Límite de Stock',
+            description: `No puedes agregar más ${product.name}.`,
+            variant: 'destructive',
+          });
+          return prevCart;
+        }
         return prevCart.map((item) =>
           item.product.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -50,6 +82,25 @@ export function POSClient() {
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
+    const itemInCart = cart.find((item) => item.product.id === productId);
+    if (!itemInCart) return;
+
+    if (quantity > itemInCart.product.stock) {
+      toast({
+        title: 'Límite de Stock',
+        description: `Solo hay ${itemInCart.product.stock} unidades de ${itemInCart.product.name}.`,
+        variant: 'destructive',
+      });
+      setCart((prevCart) =>
+        prevCart.map((item) =>
+          item.product.id === productId
+            ? { ...item, quantity: itemInCart.product.stock }
+            : item
+        )
+      );
+      return;
+    }
+
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
@@ -67,33 +118,94 @@ export function POSClient() {
     );
   };
 
-  const filteredProducts = allProducts.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.code.includes(searchTerm)
-  );
+  const filteredProducts =
+    products?.filter(
+      (product) =>
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.code.includes(searchTerm)
+    ) || [];
 
   const cartTotal = cart.reduce(
     (total, item) => total + item.product.price * item.quantity,
     0
   );
 
-  const handleFinalizeSale = () => {
+  const handleFinalizeSale = async () => {
     if (cart.length === 0) {
       toast({
-        title: 'Empty Cart',
-        description: 'Please add products to the cart before finalizing.',
+        title: 'Carrito Vacío',
+        description: 'Agrega productos antes de finalizar la venta.',
         variant: 'destructive',
       });
       return;
     }
-    toast({
-      title: 'Sale Successful!',
-      description: `Total: $${cartTotal.toFixed(2)}. Stock has been updated.`,
-      className: 'bg-green-100 dark:bg-green-900 border-green-500 text-green-700 dark:text-green-300',
-      duration: 3000,
-    });
-    setCart([]);
+    if (!firestore) {
+      toast({
+        title: 'Error de Conexión',
+        description: 'No se puede conectar a la base de datos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Use a transaction to ensure atomic update of stock and order creation
+      await runTransaction(firestore, async (transaction) => {
+        const orderItems = cart.map((item) => ({
+          productId: item.product.id,
+          name: item.product.name,
+          quantity: item.quantity,
+          unitPrice: item.product.price,
+        }));
+
+        // 1. Create the order
+        const ordersCollection = collection(firestore, 'orders');
+        await addDoc(ordersCollection, {
+          userId: 'anonymous_pos_sale', // For sales not tied to a registered user
+          items: orderItems,
+          totalAmount: cartTotal,
+          status: 'paid', // POS sales are considered paid immediately
+          createdAt: serverTimestamp(),
+        });
+
+        // 2. Update stock for each product in the cart
+        for (const item of cart) {
+          const productRef = doc(firestore, 'products', item.product.id);
+          const productDoc = await transaction.get(productRef);
+          if (!productDoc.exists()) {
+            throw new Error(`Producto ${item.product.name} no encontrado.`);
+          }
+          const newStock = productDoc.data().stock - item.quantity;
+          if (newStock < 0) {
+            throw new Error(`Stock insuficiente para ${item.product.name}.`);
+          }
+          transaction.update(productRef, { stock: newStock });
+        }
+      });
+
+      toast({
+        title: '¡Venta Exitosa!',
+        description: `Total: $${cartTotal.toFixed(
+          2
+        )}. El stock ha sido actualizado.`,
+        className:
+          'bg-green-100 dark:bg-green-900 border-green-500 text-green-700 dark:text-green-300',
+        duration: 3000,
+      });
+      setCart([]);
+    } catch (error: any) {
+      console.error('Error al finalizar la venta: ', error);
+      toast({
+        title: 'Error en la Transacción',
+        description:
+          error.message || 'No se pudo completar la venta. Revisa el stock.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -101,40 +213,48 @@ export function POSClient() {
       {/* Products Section */}
       <div className="lg:col-span-2">
         <Card className="h-full">
-            <CardHeader>
-                <Input
-                    placeholder="Search by name or scan barcode..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-md"
-                />
-            </CardHeader>
+          <CardHeader>
+            <Input
+              placeholder="Buscar por nombre o escanear código..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-md"
+            />
+          </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[calc(100vh-16rem)]">
-              <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5">
-                {filteredProducts.map((product) => (
-                  <Card
-                    key={product.id}
-                    className="cursor-pointer overflow-hidden transition-all hover:shadow-lg hover:scale-105"
-                    onClick={() => addToCart(product)}
-                  >
-                    <Image
-                      src={product.imageUrl}
-                      alt={product.name}
-                      width={200}
-                      height={200}
-                      className="h-32 w-full object-cover"
-                      data-ai-hint={product.imageHint}
-                    />
-                    <div className="p-2">
-                      <h3 className="truncate font-semibold">{product.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        ${product.price.toFixed(2)}
-                      </p>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+              {isLoading ? (
+                <div className="flex h-full items-center justify-center">
+                  <p>Cargando productos...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5">
+                  {filteredProducts.map((product) => (
+                    <Card
+                      key={product.id}
+                      className="cursor-pointer overflow-hidden transition-all hover:shadow-lg hover:scale-105"
+                      onClick={() => addToCart(product)}
+                    >
+                      <Image
+                        src={product.imageUrl}
+                        alt={product.name}
+                        width={200}
+                        height={200}
+                        className="h-32 w-full object-cover"
+                        data-ai-hint={product.imageHint}
+                      />
+                      <div className="p-2">
+                        <h3 className="truncate font-semibold">
+                          {product.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          ${product.price.toFixed(2)}
+                        </p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </ScrollArea>
           </CardContent>
         </Card>
@@ -144,14 +264,16 @@ export function POSClient() {
       <div className="lg:col-span-1">
         <Card className="flex h-full flex-col">
           <CardHeader>
-            <CardTitle>Current Sale</CardTitle>
-            <CardDescription>Review items and finalize transaction.</CardDescription>
+            <CardTitle>Venta Actual</CardTitle>
+            <CardDescription>
+              Revisa los items y finaliza la transacción.
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 p-0">
             <ScrollArea className="h-[calc(100vh-26rem)]">
               {cart.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
-                  <p>Cart is empty</p>
+                  <p>El carrito está vacío</p>
                 </div>
               ) : (
                 <div className="p-4">
@@ -166,7 +288,7 @@ export function POSClient() {
                         width={48}
                         height={48}
                         className="rounded-md object-cover"
-                         data-ai-hint={item.product.imageHint}
+                        data-ai-hint={item.product.imageHint}
                       />
                       <div className="flex-1">
                         <p className="font-semibold">{item.product.name}</p>
@@ -180,11 +302,9 @@ export function POSClient() {
                           size="icon"
                           className="h-6 w-6"
                           onClick={() =>
-                            updateQuantity(
-                              item.product.id,
-                              item.quantity - 1
-                            )
+                            updateQuantity(item.product.id, item.quantity - 1)
                           }
+                          disabled={isSubmitting}
                         >
                           <MinusCircle className="h-4 w-4" />
                         </Button>
@@ -194,11 +314,9 @@ export function POSClient() {
                           size="icon"
                           className="h-6 w-6"
                           onClick={() =>
-                            updateQuantity(
-                              item.product.id,
-                              item.quantity + 1
-                            )
+                            updateQuantity(item.product.id, item.quantity + 1)
                           }
+                          disabled={isSubmitting}
                         >
                           <PlusCircle className="h-4 w-4" />
                         </Button>
@@ -208,6 +326,7 @@ export function POSClient() {
                         size="icon"
                         className="h-6 w-6 text-destructive"
                         onClick={() => removeFromCart(item.product.id)}
+                        disabled={isSubmitting}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -225,26 +344,47 @@ export function POSClient() {
             </div>
             <Separator className="my-2" />
             <div className="w-full space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Payment Method</p>
-                <Tabs defaultValue="cash" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="cash"><DollarSign className="mr-2 h-4 w-4"/>Cash</TabsTrigger>
-                        <TabsTrigger value="card"><CreditCard className="mr-2 h-4 w-4"/>Card</TabsTrigger>
-                        <TabsTrigger value="other"><List className="mr-2 h-4 w-4"/>Other</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-                <div className="flex items-center space-x-2 pt-2">
-                    <Barcode className="h-5 w-5 text-muted-foreground"/>
-                    <Input placeholder="Client CUIT/CUIL/DNI (optional)" />
-                </div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Método de Pago
+              </p>
+              <Tabs defaultValue="cash" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="cash">
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Efectivo
+                  </TabsTrigger>
+                  <TabsTrigger value="card">
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Tarjeta
+                  </TabsTrigger>
+                  <TabsTrigger value="other">
+                    <List className="mr-2 h-4 w-4" />
+                    Otro
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="flex items-center space-x-2 pt-2">
+                <Barcode className="h-5 w-5 text-muted-foreground" />
+                <Input placeholder="Cliente CUIT/CUIL/DNI (opcional)" />
+              </div>
             </div>
             <Button
               className="mt-4 w-full bg-accent text-accent-foreground hover:bg-accent/90"
-              style={{'--accent': 'hsl(88 50% 53%)', '--accent-foreground': 'hsl(0 0% 10%)' }}
+              style={{
+                '--accent': 'hsl(88 50% 53%)',
+                '--accent-foreground': 'hsl(0 0% 10%)',
+              }}
               onClick={handleFinalizeSale}
+              disabled={isSubmitting || cart.length === 0}
             >
-              <CheckCircle className="mr-2" />
-              Finalize Sale & Print
+              {isSubmitting ? (
+                'Procesando...'
+              ) : (
+                <>
+                  <CheckCircle className="mr-2" />
+                  Finalizar Venta e Imprimir
+                </>
+              )}
             </Button>
           </CardFooter>
         </Card>

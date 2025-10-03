@@ -1,3 +1,5 @@
+import type { Timestamp } from "firebase/firestore";
+
 export type User = {
   id: string;
   name: string;
@@ -26,6 +28,23 @@ export type CartItem = {
   product: Product;
   quantity: number;
 };
+
+export type OrderItem = {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export type Order = {
+  id: string;
+  userId: string;
+  items: OrderItem[];
+  totalAmount: number;
+  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+  createdAt: Timestamp;
+}
+
 
 export type Sale = {
   id: string;
