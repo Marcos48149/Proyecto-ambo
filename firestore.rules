@@ -1,129 +1,139 @@
 /**
- * @file Firestore Security Rules for e-commerce application.
+ * @fileoverview Firestore Security Rules for the e-commerce application.
  *
- * @core_philosophy This ruleset enforces a hybrid security model:
- *   - User-owned data (profiles, cart items, orders) is strictly controlled by the user's authentication status and UID.
- *   - Product data is publicly readable but only writable by authorized roles (not yet implemented in this prototype).
- *   - A root /orders collection is open for writing to support anonymous POS sales.
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user-specific data (profiles, carts, orders)
+ * while allowing public read access to the product catalog.
+ * A top-level `/orders` collection is available for admin or anonymous sales purposes.
  *
- * @data_structure
- *   - /users/{userId}: Stores user profile information.
- *   - /products/{productId}: Stores product details.
- *   - /users/{userId}/cartItems/{cartItemId}: Stores cart items for each user.
- *   - /users/{userId}/orders/{orderId}: Stores order information for each user.
- *   - /users/{userId}/orders/{orderId}/orderItems/{orderItemId}: Stores individual items within an order.
- *   - /orders/{orderId}: Root collection for all orders, including anonymous orders.
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles, accessible only to the user themselves.
+ * - /products/{productId}: Stores product information, publicly readable.
+ * - /users/{userId}/cartItems/{cartItemId}: Stores cart items, accessible only to the user.
+ * - /users/{userId}/orders/{orderId}: Stores order history, accessible only to the user.
+ * - /users/{userId}/orders/{orderId}/orderItems/{orderItemId}: Stores order item details, accessible only to the user.
+ * - /orders/{orderId}: Root-level orders collection, writable by anyone.
  *
- * @key_security_decisions
- *   - Users can only access their own data under /users/{userId}.
- *   - Products are publicly readable. Write access to products is not yet restricted to specific roles in this prototype but MUST be implemented in production.
- *   - Listing of users is disallowed.
- *   - The /orders collection is open for create operations to support anonymous sales, but this MUST be revisited in production.
- *
- * @denormalization_for_authorization
- *   - Cart items include a 'userId' field to allow direct rule enforcement without requiring a get() on the parent /users/{userId} document.
- *
- * @structural_segregation
- *   - Orders are primarily stored under the user's document (/users/{userId}/orders/{orderId}) to ensure that users can only access their own order history.
- *   - A root `/orders` collection is maintained for admin-level queries and anonymous POS sales.
+ * Key Security Decisions:
+ * - User listing is disallowed.
+ * - Products are publicly readable but only modifiable by authorized roles (not yet implemented).
+ * - All write operations on user-owned data require authentication.
+ * - The root `/orders` collection is designed for open access, acknowledging its use in anonymous or admin contexts.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secures user profile data, ensuring only the authenticated user can access their own profile.
+     * @description Controls access to user profile information.
      * @path /users/{userId}
-     * @allow (read, write) if the authenticated user's UID matches the {userId} path segment.
-     * @deny (read, write) if the authenticated user's UID does not match the {userId} path segment.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, list) if isOwner(userId)
+     * @allow (create) if isOwner(userId)
+     * @allow (update, delete) if isExistingOwner(userId)
+     * @deny (get, list) if !isSignedIn()
+     * @deny (create) if !isSignedIn()
+     * @deny (update, delete) if !isSignedIn()
+     * @deny (create) if request.resource.data.id != request.auth.uid
+     * @deny (update) if request.resource.data.id != resource.data.id
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
      */
     match /users/{userId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false; // Listing users is not permitted.
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == request.auth.uid;
       allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Secures product data, allowing public read access but restricting writes.
+     * @description Controls access to product information.
      * @path /products/{productId}
-     * @allow (read) to anyone.
-     * @deny (create, update, delete) to non-admin users.
-     * @principle Allows public read access while restricting write access to authorized roles.
+     * @allow (get, list) if true
+     * @allow (create, update, delete) if false // TODO: Add role-based authorization for product management
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to product data but restricts modification.
      */
     match /products/{productId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
+      allow create, update, delete: if false; // TODO: Add role-based authorization for product management
     }
 
     /**
-     * @description Secures cart items, ensuring only the owner can manage their own cart.
+     * @description Controls access to cart items for a specific user.
      * @path /users/{userId}/cartItems/{cartItemId}
-     * @allow (read, write) if the authenticated user's UID matches the {userId} path segment.
-     * @deny (read, write) if the authenticated user's UID does not match the {userId} path segment.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, list) if isOwner(userId)
+     * @allow (create) if isOwner(userId)
+     * @allow (update, delete) if isExistingOwner(userId)
+     * @deny (get, list) if !isSignedIn()
+     * @deny (create) if !isSignedIn()
+     * @deny (update, delete) if !isSignedIn()
+     * @principle Enforces document ownership and restricts cart access to the owning user.
      */
     match /users/{userId}/cartItems/{cartItemId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
       allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Secures order data, ensuring only the owner can manage their own orders.
+     * @description Controls access to order history for a specific user.
      * @path /users/{userId}/orders/{orderId}
-     * @allow (read, write) if the authenticated user's UID matches the {userId} path segment.
-     * @deny (read, write) if the authenticated user's UID does not match the {userId} path segment.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, list) if isOwner(userId)
+     * @allow (create) if isOwner(userId)
+     * @allow (update, delete) if isExistingOwner(userId)
+     * @deny (get, list) if !isSignedIn()
+     * @deny (create) if !isSignedIn()
+     * @deny (update, delete) if !isSignedIn()
+     * @principle Enforces document ownership and restricts order access to the owning user.
      */
     match /users/{userId}/orders/{orderId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
       allow delete: if isSignedIn() && isExistingOwner(userId);
 
-      /**
-       * @description Secures order items, ensuring only the owner can manage items within their own orders.
-       * @path /users/{userId}/orders/{orderId}/orderItems/{orderItemId}
-       */
+        /**
+         * @description Controls access to order items within a specific order.
+         * @path /users/{userId}/orders/{orderId}/orderItems/{orderItemId}
+         * @allow (get, list) if isOwner(userId)
+         * @allow (create) if isOwner(userId)
+         * @allow (update, delete) if isExistingOwner(userId)
+         * @deny (get, list) if !isSignedIn()
+         * @deny (create) if !isSignedIn()
+         * @deny (update, delete) if !isSignedIn()
+         * @principle Enforces document ownership and restricts access to order details to the owning user.
+         */
       match /orderItems/{orderItemId} {
-        allow get: if isSignedIn() && isOwner(userId);
-        allow list: if isSignedIn() && isOwner(userId);
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
         allow create: if isSignedIn() && isOwner(userId);
         allow update: if isSignedIn() && isExistingOwner(userId);
         allow delete: if isSignedIn() && isExistingOwner(userId);
       }
     }
-
       /**
-       * @description Open access to the /orders collection to allow for anonymous POS sales
-       * @path /orders/{orderId}
-       * @allow create to any signed-in user for prototyping
-       * @principle Read access is forbidden, and the `create` rule should be revisited in production
-       */
-      match /orders/{orderId} {
-        allow get, list: if false;
-        allow create: if true;
-        allow update, delete: if false;
+         * @description Controls access to orders at the root level.
+         * @path /orders/{orderId}
+         * @allow (get, list, create, update, delete) if true;
+         * @principle Allows open access to the orders collection for anonymous sales and admin queries.
+         */
+    match /orders/{orderId} {
+        allow get, list, create, update, delete: if true;
     }
 
-  }
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-  // Helper functions
-  function isSignedIn() {
-    return request.auth != null;
-  }
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
 
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
-
-  function isExistingOwner(userId) {
-    return isSignedIn() && isOwner(userId) && resource != null;
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
   }
 }

@@ -36,6 +36,8 @@ export default function OrdersPage() {
         const userDoc = await getDoc(doc(firestore, 'users', user.uid));
         if (userDoc.exists() && userDoc.data().role === 'admin') {
           setIsAdmin(true);
+        } else {
+          setIsAdmin(false); // Explicitly set to false for non-admins
         }
       }
     };
