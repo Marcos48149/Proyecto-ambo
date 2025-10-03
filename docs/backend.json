@@ -1,0 +1,203 @@
+
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user in the system, who can be a customer or an administrator.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier from Firebase Authentication."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user, determining their permissions.",
+          "enum": ["cliente", "admin"]
+        },
+        "phone": {
+          "type": "string",
+          "description": "The user's phone number (optional)."
+        },
+        "address": {
+          "type": "string",
+          "description": "The user's shipping address (optional)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user account was created."
+        }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Represents a piece of professional clothing available for sale.",
+      "type": "object",
+      "properties": {
+        "productId": {
+          "type": "string",
+          "description": "The unique identifier for the product (Firestore autoID)."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the product."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the product."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category the product belongs to (e.g., 'batas', 'pantalones')."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price of the product."
+        },
+        "stock": {
+          "type": "number",
+          "description": "The total stock quantity available for the product across all sizes."
+        },
+        "sizes": {
+          "type": "array",
+          "description": "An array of available sizes for the product.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "images": {
+          "type": "array",
+          "description": "An array of URLs pointing to the product images in Firebase Storage.",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the product was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the product was last updated."
+        }
+      },
+      "required": ["productId", "name", "description", "category", "price", "stock", "sizes", "images", "createdAt", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Represents a customer's order.",
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "description": "The unique identifier for the order (Firestore autoID)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who placed the order."
+        },
+        "products": {
+          "type": "array",
+          "description": "An array of products included in the order.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "name": { "type": "string" },
+              "size": { "type": "string" },
+              "quantity": { "type": "number" },
+              "priceUnit": { "type": "number" }
+            },
+            "required": ["productId", "name", "size", "quantity", "priceUnit"]
+          }
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The total amount of the order."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the order.",
+          "enum": ["pending", "paid", "shipped", "delivered", "cancelled"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the order was created."
+        }
+      },
+      "required": ["orderId", "userId", "products", "totalAmount", "status", "createdAt"]
+    },
+    "Cart": {
+        "title": "Cart",
+        "description": "Represents a user's shopping cart.",
+        "type": "object",
+        "properties": {
+          "cartId": {
+            "type": "string",
+            "description": "The unique identifier for the cart (Firestore autoID)."
+          },
+          "userId": {
+            "type": "string",
+            "description": "The UID of the user this cart belongs to."
+          },
+          "products": {
+            "type": "array",
+            "description": "An array of products in the cart.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": { "type": "string" },
+                "name": { "type": "string" },
+                "size": { "type": "string" },
+                "quantity": { "type": "number" },
+                "priceUnit": { "type": "number" }
+              },
+              "required": ["productId", "name", "size", "quantity", "priceUnit"]
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The timestamp when the cart was last updated."
+          }
+        },
+        "required": ["cartId", "userId", "products", "updatedAt"]
+    }
+  },
+  "auth": {
+    "providers": ["email_password"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profile information."
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Stores all available products for the e-commerce store."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Stores all customer orders."
+    },
+    "/users/{userId}/cart/{cartId}": {
+        "schema": { "$ref": "#/entities/Cart" },
+        "description": "Stores the user's shopping cart. It is a subcollection of the user."
+    }
+  }
+}
