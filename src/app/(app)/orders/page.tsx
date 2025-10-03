@@ -27,28 +27,39 @@ export default function OrdersPage() {
   const { user } = useUser();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isRoleChecked, setIsRoleChecked] = useState(false);
 
   // This effect will check the user's role once the user object is available.
   useEffect(() => {
     const checkAdmin = async () => {
       if (user && firestore) {
-        const userDoc = await getDoc(doc(firestore, 'users', user.uid));
-        if (userDoc.exists() && userDoc.data().role === 'admin') {
-          setIsAdmin(true);
+        try {
+          const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+          if (userDoc.exists() && userDoc.data().role === 'admin') {
+            setIsAdmin(true);
+          }
+        } finally {
+          setIsRoleChecked(true); // Mark role check as complete
         }
+      } else if (!user) {
+        setIsRoleChecked(true); // If no user, check is also "complete"
       }
     };
     checkAdmin();
   }, [user, firestore]);
 
   const ordersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    
+    // Wait until the role check is complete before creating a query.
+    if (!firestore || !user || !isRoleChecked) return null;
+
     // Admins query the collection group 'orders' to see all orders across all users.
     // Regular users query their own nested `orders` subcollection.
-    const path = isAdmin ? collectionGroup(firestore, 'orders') : collection(firestore, 'users', user.uid, 'orders');
+    const path = isAdmin
+      ? collectionGroup(firestore, 'orders')
+      : collection(firestore, 'users', user.uid, 'orders');
+
     return query(path, orderBy('createdAt', 'desc'));
-  }, [firestore, user, isAdmin]);
+  }, [firestore, user, isAdmin, isRoleChecked]);
 
   const {
     data: orders,
@@ -81,6 +92,8 @@ export default function OrdersPage() {
     return <div>Error: {error.message}</div>;
   }
 
+  const showLoadingSkeleton = isLoading || !isRoleChecked;
+
   return (
     <>
       <PageHeader
@@ -99,7 +112,7 @@ export default function OrdersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading &&
+            {showLoadingSkeleton &&
               [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
@@ -119,7 +132,7 @@ export default function OrdersPage() {
                   </TableCell>
                 </TableRow>
               ))}
-            {orders && orders.length > 0 ? (
+            {!showLoadingSkeleton && orders && orders.length > 0 ? (
               orders.map((order) => (
                 <TableRow
                   key={order.id}
@@ -144,7 +157,7 @@ export default function OrdersPage() {
                 </TableRow>
               ))
             ) : (
-              !isLoading && (
+              !showLoadingSkeleton && (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
                     No orders found.

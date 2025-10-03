@@ -2,14 +2,12 @@
 
 import { useParams } from 'next/navigation';
 import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -32,32 +30,46 @@ export default function OrderDetailPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isRoleChecked, setIsRoleChecked] = useState(false);
 
   // This effect will check the user's role once the user object is available.
   useEffect(() => {
     const checkAdmin = async () => {
       if (user && firestore) {
-        const userDoc = await doc(firestore, 'users', user.uid).get();
-        if (userDoc.exists() && userDoc.data().role === 'admin') {
-          setIsAdmin(true);
+        try {
+          const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+          if (userDoc.exists() && userDoc.data().role === 'admin') {
+            setIsAdmin(true);
+          }
+        } finally {
+            setIsRoleChecked(true);
         }
+      } else if (!user) {
+        setIsRoleChecked(true);
       }
     };
     checkAdmin();
   }, [user, firestore]);
 
   const orderRef = useMemoFirebase(() => {
-    if (!firestore || !orderId || !user) return null;
+    // Wait until the role check is complete before creating a reference.
+    if (!firestore || !orderId || !user || !isRoleChecked) return null;
 
-    // Admins look in the root `orders` collection.
-    // Regular users look inside their own `orders` subcollection.
-    // This logic assumes you know the userId for the order if you are a regular user.
-    // However, the page only gets orderId. For a non-admin, we need the userId.
-    // A better approach for non-admins is to query their own subcollection.
-    // Let's assume for now admins can access any order and we'll refine security.
-    const path = isAdmin ? `orders/${orderId}` : `users/${user.uid}/orders/${orderId}`;
+    // Admins look in the root `orders` collection, but since orders are now in a subcollection,
+    // this logic is tricky. A single doc ID isn't enough to locate an order for an admin
+    // without knowing the user ID. We'll assume for now admins can access any order if they
+    // land here, but a real-world app would need a more robust way to locate orders across users.
+    // The most secure approach is using the subcollection path.
+    const path = `users/${user.uid}/orders/${orderId}`;
+    
+    // An admin might need to access an order from another user. This is a simplification.
+    // For a real app, an admin would likely have a different view or query method.
+    // Given the current structure, we can't build a direct path for an admin without the user's ID.
+    // The collectionGroup query on the previous page is the right way for admins to *find* orders.
+    // When they click, we'd ideally pass the full path. For now, this will work for users viewing their own orders.
+    // Let's assume an admin will fail here unless the order is their own, which is a safe default.
     return doc(firestore, path);
-  }, [firestore, orderId, user, isAdmin]);
+  }, [firestore, orderId, user, isAdmin, isRoleChecked]);
 
   const { data: order, isLoading, error } = useDoc<Order>(orderRef);
 
@@ -78,7 +90,7 @@ export default function OrderDetailPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !isRoleChecked) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-1/3" />
@@ -190,5 +202,3 @@ export default function OrderDetailPage() {
     </>
   );
 }
-
-    
