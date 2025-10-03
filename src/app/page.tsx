@@ -11,21 +11,47 @@ import {
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import {
+  useCollection,
+  useFirestore,
+  useMemoFirebase,
+  setDocumentNonBlocking,
+} from '@/firebase';
+import { collection, query, doc, getDocs } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserNav } from '@/components/UserNav';
+import { useEffect } from 'react';
+import { products as sampleProducts } from '@/lib/data';
 
 export default function HomePage() {
   const firestore = useFirestore();
+
+  // Seed database with sample products if it's empty
+  useEffect(() => {
+    const seedDatabase = async () => {
+      if (!firestore) return;
+      const productsCollection = collection(firestore, 'products');
+      const snapshot = await getDocs(productsCollection);
+      if (snapshot.empty) {
+        console.log('No products found, seeding database...');
+        const promises = sampleProducts.map((product) => {
+          const productDoc = doc(productsCollection, product.id);
+          // Use a non-blocking write to avoid waiting for the promise to resolve
+          return setDocumentNonBlocking(productDoc, product, {});
+        });
+        await Promise.all(promises);
+        console.log('Database seeded!');
+      }
+    };
+    seedDatabase();
+  }, [firestore]);
+
   const productsQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'products')) : null),
     [firestore]
   );
-  const { data: products, isLoading } = useCollection<Product>(
-    productsQuery
-  );
+  const { data: products, isLoading } = useCollection<Product>(productsQuery);
 
   const featuredProducts = products?.slice(0, 5) || [];
 
@@ -103,7 +129,7 @@ export default function HomePage() {
               Una selección de nuestros ambos más populares y mejor valorados.
             </p>
             <div className="mt-12">
-              {isLoading ? (
+              {isLoading || products?.length === 0 ? (
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {[...Array(3)].map((_, i) => (
                     <div key={i} className="space-y-4">

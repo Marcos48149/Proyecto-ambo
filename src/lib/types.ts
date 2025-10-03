@@ -2,7 +2,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'seller';
+  role: 'admin' | 'seller' | 'cliente';
   avatarUrl?: string;
 };
 
@@ -12,13 +12,14 @@ export type Product = {
   id: string;
   code: string;
   name: string;
-  category: Category;
+  category: string;
   price: number;
   stock: number;
   minStock: number;
   provider: string;
   imageUrl: string;
   imageHint: string;
+  availableSizes?: string[];
 };
 
 export type CartItem = {
