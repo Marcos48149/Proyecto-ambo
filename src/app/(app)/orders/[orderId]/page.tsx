@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collectionGroup, query, where, getDocs } from 'firebase/firestore';
 import type { Order } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
 import {
@@ -31,45 +31,50 @@ export default function OrderDetailPage() {
   const { user } = useUser();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRoleChecked, setIsRoleChecked] = useState(false);
+  const [orderPath, setOrderPath] = useState<string | null>(null);
 
-  // This effect will check the user's role once the user object is available.
   useEffect(() => {
-    const checkAdmin = async () => {
+    const checkRoleAndFindOrder = async () => {
       if (user && firestore) {
         try {
           const userDoc = await getDoc(doc(firestore, 'users', user.uid));
-          if (userDoc.exists() && userDoc.data().role === 'admin') {
-            setIsAdmin(true);
+          const userIsAdmin = userDoc.exists() && userDoc.data().role === 'admin';
+          setIsAdmin(userIsAdmin);
+
+          if (userIsAdmin) {
+            // Admin: Find the order across all users using a collectionGroup query
+            const q = query(
+              collectionGroup(firestore, 'orders'),
+              where('id', '==', orderId)
+            );
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+              // Assuming order IDs are unique, take the first one found
+              setOrderPath(querySnapshot.docs[0].ref.path);
+            }
+          } else {
+            // Regular user: path is in their own subcollection
+            setOrderPath(`users/${user.uid}/orders/${orderId}`);
           }
-        } finally {
-            setIsRoleChecked(true);
+        } catch(e) {
+            console.error("Error finding order:", e);
+        }
+        finally {
+          setIsRoleChecked(true);
         }
       } else if (!user) {
         setIsRoleChecked(true);
       }
     };
-    checkAdmin();
-  }, [user, firestore]);
+    checkRoleAndFindOrder();
+  }, [user, firestore, orderId]);
 
   const orderRef = useMemoFirebase(() => {
-    // Wait until the role check is complete before creating a reference.
-    if (!firestore || !orderId || !user || !isRoleChecked) return null;
+    // Wait until the role check is complete and we have a path
+    if (!firestore || !orderPath || !isRoleChecked) return null;
 
-    // Admins look in the root `orders` collection, but since orders are now in a subcollection,
-    // this logic is tricky. A single doc ID isn't enough to locate an order for an admin
-    // without knowing the user ID. We'll assume for now admins can access any order if they
-    // land here, but a real-world app would need a more robust way to locate orders across users.
-    // The most secure approach is using the subcollection path.
-    const path = `users/${user.uid}/orders/${orderId}`;
-    
-    // An admin might need to access an order from another user. This is a simplification.
-    // For a real app, an admin would likely have a different view or query method.
-    // Given the current structure, we can't build a direct path for an admin without the user's ID.
-    // The collectionGroup query on the previous page is the right way for admins to *find* orders.
-    // When they click, we'd ideally pass the full path. For now, this will work for users viewing their own orders.
-    // Let's assume an admin will fail here unless the order is their own, which is a safe default.
-    return doc(firestore, path);
-  }, [firestore, orderId, user, isAdmin, isRoleChecked]);
+    return doc(firestore, orderPath);
+  }, [firestore, orderPath, isRoleChecked]);
 
   const { data: order, isLoading, error } = useDoc<Order>(orderRef);
 
@@ -90,7 +95,7 @@ export default function OrderDetailPage() {
     }
   };
 
-  if (isLoading || !isRoleChecked) {
+  if (isLoading || !isRoleChecked || (isAdmin && !orderPath)) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-1/3" />
