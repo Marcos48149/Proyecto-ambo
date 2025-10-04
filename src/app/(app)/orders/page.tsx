@@ -31,6 +31,8 @@ export default function OrdersPage() {
 
   useEffect(() => {
     const checkAdmin = async () => {
+      // Reset state on user change
+      setIsAdmin(false);
       setIsRoleChecked(false);
       if (user && firestore) {
         try {
@@ -47,25 +49,32 @@ export default function OrdersPage() {
           setIsRoleChecked(true);
         }
       } else if (!user) {
-        setIsRoleChecked(true); // Also true if there's no user
+         // If there is no user, we are not an admin, and we can consider the role check "complete"
+        setIsRoleChecked(true);
       }
     };
     checkAdmin();
   }, [user, firestore]);
 
   const ordersQuery = useMemoFirebase(() => {
-    // Wait until role is checked, and we have a user and firestore instance
-    if (!isRoleChecked || !user || !firestore) {
+    // Crucially, wait until the role check is complete
+    if (!isRoleChecked || !firestore) {
       return null;
     }
 
-    // Now we can safely build the query
     if (isAdmin) {
       return firestoreQuery(collectionGroup(firestore, 'orders'), orderBy('createdAt', 'desc'));
-    } else {
+    }
+    
+    // If not admin, but there's a user, fetch their specific orders
+    if(user) {
       const userOrdersRef = collection(firestore, 'users', user.uid, 'orders');
       return firestoreQuery(userOrdersRef, orderBy('createdAt', 'desc'));
     }
+
+    // If no user and not admin (e.g. logged out), return null
+    return null;
+
   }, [firestore, user, isAdmin, isRoleChecked]);
 
   const {
@@ -109,8 +118,9 @@ export default function OrdersPage() {
       </div>
     );
   }
-
-  const showLoadingSkeleton = isLoading || !isRoleChecked;
+  
+  // The skeleton now correctly shows while the role is being checked OR while data is being fetched.
+  const showLoadingSkeleton = !isRoleChecked || isLoading;
 
   return (
     <>

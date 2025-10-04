@@ -58,6 +58,8 @@ function extractPath(queryOrRef: CollectionReference<DocumentData> | Query<Docum
     const internalQuery = queryOrRef as unknown as InternalQuery;
     if (internalQuery._query?.path) {
       const path = internalQuery._query.path.canonicalString();
+      // An empty canonical string signifies a collectionGroup query on the root, which is invalid.
+      if (path === '') return 'unknown (empty query path)';
       return path || 'unknown (empty query path)';
     }
     
@@ -104,7 +106,7 @@ export function useCollection<T = any>(
     // where the query is not yet ready (e.g., waiting for user auth).
     if (!memoizedTargetRefOrQuery) {
       setData(null);
-      setIsLoading(false); 
+      setIsLoading(false); // Set loading to false as there's nothing to load
       setError(null);
       return;
     }
