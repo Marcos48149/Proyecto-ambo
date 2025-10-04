@@ -33,7 +33,8 @@ export interface InternalQuery extends Query<DocumentData> {
     path: {
       canonicalString(): string;
       toString(): string;
-    }
+    };
+    collectionGroup?: string;
   }
 }
 
@@ -56,18 +57,19 @@ function extractPath(queryOrRef: CollectionReference<DocumentData> | Query<Docum
 
     // Try to extract from query internal structure
     const internalQuery = queryOrRef as unknown as InternalQuery;
-    if (internalQuery._query?.path) {
-      const path = internalQuery._query.path.canonicalString();
-      // An empty canonical string signifies a collectionGroup query on the root, which is invalid.
-      if (path === '') return 'unknown (empty query path)';
-      return path || 'unknown (empty query path)';
+    
+    // Check for collectionGroup first
+    if (internalQuery._query && internalQuery._query.collectionGroup) {
+      return `collectionGroup(${internalQuery._query.collectionGroup})`;
     }
     
-    // For CollectionGroup queries, the path property is not directly on the query object.
-    // This is a common case where path extraction might be difficult.
-    // Let's check for a known pattern for collectionGroup
-    if (internalQuery._query && (internalQuery._query as any).allCollectionGroup) {
-      return (internalQuery._query as any).allCollectionGroup;
+    if (internalQuery._query?.path) {
+      const path = internalQuery._query.path.canonicalString();
+      // Empty path might be OK for collectionGroup queries
+      if (path === '' && internalQuery._query.collectionGroup) {
+        return `collectionGroup(${internalQuery._query.collectionGroup})`;
+      }
+      return path || 'unknown (empty query path)';
     }
 
     return 'unknown (could not extract path)';
@@ -123,14 +125,17 @@ export function useCollection<T = any>(
 
     // Extract path early for error handling
     const queryPath = extractPath(memoizedTargetRefOrQuery);
-    if(queryPath.startsWith('unknown')){
-        const invalidQueryError = new Error(`Invalid Firestore query: Cannot query root collection or empty path. Path: "${queryPath}"`);
-        setError(invalidQueryError);
-        setIsLoading(false);
-        // Do not emit this as a permission error, it's a code-level error.
-        return;
+    
+    // Only reject if it's truly invalid (starts with 'unknown' but NOT collectionGroup)
+    if (queryPath.startsWith('unknown') && !queryPath.includes('collectionGroup')) {
+      const invalidQueryError = new Error(
+        `Invalid Firestore query: Cannot query root collection or empty path. Path: "${queryPath}"`
+      );
+      setError(invalidQueryError);
+      setIsLoading(false);
+      // Do not emit this as a permission error, it's a code-level error.
+      return;
     }
-
 
     // Subscribe to the collection/query
     const unsubscribe = onSnapshot(

@@ -10,12 +10,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import type { Product } from '@/lib/types';
-import { useFormState } from 'react-dom';
 import { getReorderSuggestion } from '../actions';
 import { useEffect, useState } from 'react';
 import { Rocket, Lightbulb, Package, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { useActionState } from 'react';
 
 type ReorderSuggestionModalProps = {
   product: Product | null;
@@ -34,18 +34,18 @@ export function ReorderSuggestionModal({
   isOpen,
   onOpenChange,
 }: ReorderSuggestionModalProps) {
-  const [formState, formAction] = useFormState(getReorderSuggestion, initialState);
+  const [formState, formAction] = useActionState(getReorderSuggestion, initialState);
   const [isPending, setIsPending] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     setIsPending(false);
-    if(formState.error) {
-        toast({
-            title: "Error",
-            description: formState.error,
-            variant: "destructive"
-        })
+    if (formState.error) {
+      toast({
+        title: "Error",
+        description: formState.error,
+        variant: "destructive"
+      });
     }
   }, [formState, toast]);
 
@@ -107,28 +107,27 @@ export function ReorderSuggestionModal({
             )}
             
             {formState.success && formState.data && (
-                <div className="rounded-lg border border-green-500/50 bg-green-50 p-4 dark:bg-green-950">
-                    <h3 className="mb-2 flex items-center gap-2 font-semibold text-green-800 dark:text-green-300">
-                        <Lightbulb size={16} /> AI Suggestion
-                    </h3>
-                    <p className="text-4xl font-bold text-center text-green-700 dark:text-green-200 py-4">
-                        Reorder {formState.data.reorderQuantity} units
-                    </p>
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                        <span className="font-semibold">Reasoning:</span> {formState.data.reasoning}
-                    </p>
-                </div>
+              <div className="rounded-lg border border-green-500/50 bg-green-50 p-4 dark:bg-green-950">
+                <h3 className="mb-2 flex items-center gap-2 font-semibold text-green-800 dark:text-green-300">
+                  <Lightbulb size={16} /> AI Suggestion
+                </h3>
+                <p className="text-4xl font-bold text-center text-green-700 dark:text-green-200 py-4">
+                  Reorder {formState.data.reorderQuantity} units
+                </p>
+                <p className="text-sm text-green-600 dark:text-green-400">
+                  <span className="font-semibold">Reasoning:</span> {formState.data.reasoning}
+                </p>
+              </div>
             )}
             
             {formState.error && (
-                 <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-                     <h3 className="mb-2 flex items-center gap-2 font-semibold text-destructive">
-                         <AlertCircle size={16} /> Error
-                     </h3>
-                     <p className="text-sm text-destructive">{formState.error}</p>
-                 </div>
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                <h3 className="mb-2 flex items-center gap-2 font-semibold text-destructive">
+                  <AlertCircle size={16} /> Error
+                </h3>
+                <p className="text-sm text-destructive">{formState.error}</p>
+              </div>
             )}
-
           </div>
 
           <DialogFooter>

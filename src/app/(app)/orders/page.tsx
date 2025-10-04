@@ -57,26 +57,29 @@ export default function OrdersPage() {
   }, [user, firestore]);
 
   const ordersQuery = useMemoFirebase(() => {
-    // Crucially, wait until the role check is complete
     if (!isRoleChecked || !firestore) {
       return null;
     }
-
+  
     if (isAdmin) {
-      return firestoreQuery(collectionGroup(firestore, 'orders'), orderBy('createdAt', 'desc'));
+      console.log('👑 Creating ADMIN query from /orders collection');
+      // Admin: lee de la colección raíz /orders
+      return firestoreQuery(
+        collection(firestore, 'orders'),
+        orderBy('createdAt', 'desc')
+      );
     }
     
-    // If not admin, but there's a user, fetch their specific orders
     if(user) {
-      const userOrdersRef = collection(firestore, 'users', user.uid, 'orders');
-      return firestoreQuery(userOrdersRef, orderBy('createdAt', 'desc'));
+      console.log('👤 Creating USER query');
+      return firestoreQuery(
+        collection(firestore, 'users', user.uid, 'orders'),
+        orderBy('createdAt', 'desc')
+      );
     }
-
-    // If no user and not admin (e.g. logged out), return null
+  
     return null;
-
   }, [firestore, user, isAdmin, isRoleChecked]);
-
   const {
     data: orders,
     isLoading,
